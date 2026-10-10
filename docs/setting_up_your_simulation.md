@@ -176,8 +176,9 @@ Two presets:
   production), at 633 nm unless stated: EF(900 nm)/EF(633 nm) 0.79 vs 1.47, EF(525 nm)/
   EF(633 nm) 0.17 vs 0.19, SiO2/Au 0.111 vs 0.128, 1 nm/2 nm gap 3.91 vs 3.97. Two things do
   transfer, and the small domain is used for exactly these: the effect of a thin layer on the
-  same substrate at the same wavelength (WS2/Au to Au/Au within 1.3 %, 0.5 % except at 560
-  nm; validated for gold only) and the change of EF with resolution (section 9). Spectra, substrate comparisons and sweeps need the production
+  same substrate at the same wavelength (FEM: WS2/Au to Au/Au within 1.3 % over 500–900 nm,
+  0.5 % except at 560 nm; at 633 nm also checked on Ag, +0.4 %, and SiO2, +0.6 %,
+  `validation/layer_transfer_fem.py`) and the change of EF with resolution (section 9). Spectra, substrate comparisons and sweeps need the production
   domain. Its run-time guard (`max_shaft_illumination`) is switched off for this reason.
 
 What the knobs do:
@@ -228,7 +229,8 @@ not for every run.
      (`validation/production_checks.py`; reference case: 139.7 → 143.8 from 1 to
      1.5 pixels/nm, against FEM 151.3). The error falls roughly linearly with the cell size
      (cylinder nanogap: −4.6, −2.8, −1.0 % at 1, 1.5, 2 pixels/nm), so extrapolate the two
-     values linearly in the cell size (reference case: +0.5 % from the FEM). The
+     values in the cell size (reference case: +0.5 % from the FEM for first-order, −2.8 % for
+     second-order convergence; treat such an estimate as good to a few %). The
      1.5 pixels/nm run has 60 million cells: ~40 min on one RTX A6000 (10.6 GB) with gpmeep.
 
    A resolution series in the small domain (`validation/resolution_series.py`) shows the same
@@ -263,7 +265,7 @@ Measured costs (one wavelength; the structure set-up is paid once per geometry):
 | small domain, 0.67 nm cells, Au / WS2/Au | 3.96 M | 22 000–30 000 / 32 000–67 000 | 87–120 s / 209–429 s, + 40–80 s set-up, ~1 GB GPU memory | — |
 | small domain, 0.5 nm cells | 7.04 M | 29 000–41 000 | 165–227 s + 71 s set-up | — |
 | small domain, 0.33 nm cells, Au / WS2/Au | 15.8 M | 46 000 / 99 000 | 482 s / 1370 s, + 160–320 s set-up | — |
-| production, 2 nm cells, Au (examples 02–04, 07, 08) | 6.71 M | 10 800–11 700 | 88–100 s + 130–150 s set-up | 616–685 s with 8 MPI processes (+26 s set-up) |
+| production, 2 nm cells, Au (examples 02–04, 07, 08) | 6.71 M | 10 800–11 700 | 88–100 s + 130–180 s set-up | 616–685 s with 8 MPI processes (+26 s set-up) |
 | production, 1 nm cells, Au | 26.8 M | 19 000–25 000 | 374–496 s + 510 s set-up, 5.7 GB GPU memory | 3614 s with 32 MPI processes (+58 s set-up); 5.0 GB RAM as one process (530 s set-up) |
 | production, 1 nm cells, SiO2 | 28.6 M | 19 000–23 000 | 385–473 s + 630 s set-up | — |
 | production, 0.67 nm cells, Au | 60.4 M | 30 400 | 1229 s + 1173 s set-up, 10.6 GB GPU memory | — |
@@ -272,7 +274,9 @@ Each number is a single run (the same production case took 398 s and 470 s in tw
 expect ±10–20 %). GPU: NVIDIA RTX A6000 (48 GB); CPU: AMD EPYC 7543 (2 × 32 cores). The GPU
 and CPU lanes differ in precision (FP32 vs FP64) and in chunk layout (banded vs Meep's), so the
 speed ratios compare the two set-ups as used, not the hardware alone.
-(`docs/figures/data/run_times.csv` has every run of the reference results.) Rules of thumb:
+(`docs/figures/data/run_times.csv` has every run of the reference results; `coarse_checks.csv`,
+`production_checks.csv` and `fp32_vs_fp64.csv` the runs of the later checks and examples.)
+Rules of thumb:
 gpmeep advanced ~1.4 × 10⁹ cell-updates/s on the production domain and 32 CPU cores
 ~1.5 × 10⁸; the GPU was 9 times faster in time stepping and 4 times faster end to end for a
 single wavelength, because gpmeep builds the structure on one host thread (510 s vs 58 s on

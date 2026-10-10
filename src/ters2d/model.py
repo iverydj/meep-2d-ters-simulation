@@ -244,7 +244,7 @@ class Numerics:
         Same boundary treatment as the production domain, but short, steep absorbers and a
         shaft drive ramped down between 0.35 and 0.6 um, i.e. the shaft is illuminated
         over a much shorter length. Absolute enhancement factors differ from the production
-        domain (2.5 times larger for the default case: EF 352.6 vs 139.7 at 1 nm cells), move
+        domain (2.5 times larger for the default case at 633 nm, 1.4 times at 900 nm), move
         at first order with the position of the drive ramp relative to the tip, and spectral
         shapes and substrate contrasts are not preserved. Two things transfer: the effect of a
         thin layer on the same substrate at the same wavelength, and changes with resolution.

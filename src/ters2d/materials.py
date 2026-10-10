@@ -13,8 +13,9 @@ sigma, gamma >= 0 the model is passive (Im eps >= 0 for f > 0) and causal.
 
 The user-facing API takes wavelengths in nm. Built-in materials:
 
-* ``AU``: Lorentz-Drude fit of Rakic et al., Appl. Opt. 37, 5271 (1998),
-  doi:10.1364/AO.37.005271; the same parameters as ``meep.materials.Au``.
+* ``AU``, ``AG``: Lorentz-Drude fits of Rakic et al., Appl. Opt. 37, 5271 (1998),
+  doi:10.1364/AO.37.005271; the same parameters as ``meep.materials.Au`` and ``.Ag``
+  (``AG`` is supported but not part of the validated set).
 * ``SIO2``: non-dispersive, n = 1.45.
 * ``WS2_MONOLAYER``: uniaxial monolayer WS2 (optic axis along the layer normal), passive
   Lorentz fits of the in-plane monolayer data of Ermolaev et al. (2020) and the
@@ -253,9 +254,21 @@ def is_metallic(material: AnyMaterial, wavelength_nm) -> bool:
 # ---------------------------------------------------------------------------- built-ins
 
 
+def _rakic(name: str, plasma_eV: float, terms, valid_nm) -> Material:
+    """Lorentz-Drude metal of Rakic et al. (1998) exactly as built by ``meep.materials``.
+
+    terms: (oscillator strength, resonance energy [eV], damping [eV]); the first is the Drude term.
+    """
+    plasma = plasma_eV * EV_TO_INV_UM
+    poles = []
+    for i, (strength, e0, g) in enumerate(terms):
+        f0 = 1e-10 if i == 0 else e0 * EV_TO_INV_UM  # Meep's representation of the Drude term
+        poles.append(Pole("drude" if i == 0 else "lorentz", f0, g * EV_TO_INV_UM, strength * plasma**2 / f0**2))
+    ref = f"Lorentz-Drude fit: A. D. Rakic et al., Appl. Opt. 37, 5271 (1998), doi:10.1364/AO.37.005271 (= meep.materials.{name})"
+    return Material(name, 1.0, tuple(poles), valid_nm, ref)
+
+
 def _rakic_au() -> Material:
-    # (oscillator strength, resonance energy [eV], damping [eV]); the first term is the Drude term.
-    plasma = 9.03 * EV_TO_INV_UM
     terms = [
         (0.760, 0.0, 0.053),
         (0.024, 0.415, 0.241),
@@ -264,21 +277,19 @@ def _rakic_au() -> Material:
         (0.601, 4.304, 2.494),
         (4.384, 13.32, 2.214),
     ]
-    poles = []
-    for i, (strength, e0, g) in enumerate(terms):
-        if i == 0:
-            f0 = 1e-10  # Meep's representation of the Drude term
-            poles.append(Pole("drude", f0, g * EV_TO_INV_UM, strength * plasma**2 / f0**2))
-        else:
-            f0 = e0 * EV_TO_INV_UM
-            poles.append(Pole("lorentz", f0, g * EV_TO_INV_UM, strength * plasma**2 / f0**2))
-    return Material(
-        "Au",
-        1.0,
-        tuple(poles),
-        (247.97, 6199.2),  # the range of meep.materials.Au
-        "Lorentz-Drude fit: A. D. Rakic et al., Appl. Opt. 37, 5271 (1998), doi:10.1364/AO.37.005271 (= meep.materials.Au)",
-    )
+    return _rakic("Au", 9.03, terms, (247.97, 6199.2))  # the range of meep.materials.Au
+
+
+def _rakic_ag() -> Material:
+    terms = [
+        (0.845, 0.0, 0.048),
+        (0.065, 0.816, 3.886),
+        (0.124, 4.481, 0.452),
+        (0.011, 8.185, 0.065),
+        (0.840, 9.083, 0.916),
+        (5.646, 20.29, 2.419),
+    ]
+    return _rakic("Ag", 9.01, terms, (247.97, 12398.0))  # the range of meep.materials.Ag
 
 
 def load_packaged(filename: str) -> Material:
@@ -288,6 +299,7 @@ def load_packaged(filename: str) -> Material:
 
 
 AU = _rakic_au()
+AG = _rakic_ag()
 SIO2 = Material("SiO2", 1.45**2, reference="non-dispersive, n = 1.45")
 AIR = Material("air", 1.0)
 WS2_MONOLAYER = UniaxialMaterial(

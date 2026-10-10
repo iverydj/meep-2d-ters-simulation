@@ -17,10 +17,11 @@ Samples are a semi-infinite substrate plus layers listed from the substrate upwa
 
 For each substrate the script runs the bare substrate and the substrate with the monolayer and
 reports EF(with layer) / EF(without): the effect of the layer. That ratio is the one quantity
-the cheap small domain gives correctly (validated for gold: within 1.3 % of the production
-domain, docs/setting_up_your_simulation.md); absolute EF values and comparisons between
-substrates need Numerics.production. Before trusting the ratio for a new substrate, compare it
-in both domains with the FEM (ters2d.fem.solve, a minute each on a CPU).
+the cheap small domain gives correctly (FEM, small vs production domain: within 1.3 % for gold
+over 500-900 nm, and at 633 nm +0.4 % for silver and +0.6 % for SiO2;
+validation/layer_transfer_fem.py). Absolute EF values and comparisons between substrates need
+Numerics.production. For a new substrate or wavelength, repeat that FEM comparison first (a
+few minutes on a CPU).
 
 Cost: six runs at 1.5 pixels/nm in the small domain, ~2-8 min each on a GPU (gpmeep), far
 longer on one CPU core (use MPI: mpirun -np 16 python ...).

@@ -1,7 +1,8 @@
 """Two checks of the production set-up itself (Au/Au, 2 nm gap, 633 nm):
 
 * resolution in the production domain: 1 and 1.5 pixels/nm (60 million cells), compared with
-  the FEM value of the same model; the small-domain series only bounds this error from below;
+  the FEM value of the same model (a small-domain series judged by its own finest grids
+  understates this error; judged against its own FEM it is about the same);
 * the stop rule: a run stops when the DFT fields have settled, but not before the light has
   crossed the free region once (~6.7 um/c). A run with a minimum of 14 um/c after the source
   also contains the echoes of the shaft plasmons from the top boundary region (round trip

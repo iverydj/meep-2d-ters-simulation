@@ -63,10 +63,11 @@ trusting such a case.
 absolute values are 2.5 times those of the production domain at 633 nm (1.4 times
 at 900 nm), they depend at first order on where the drive ramp sits relative to the tip, and the
 domain does not preserve spectral shapes or substrate contrasts. Only the effect of a thin layer
-on the same substrate at the same wavelength (validated for gold) and changes with resolution
-are taken from it.
+on the same substrate at the same wavelength (checked with the FEM for gold over 500–900 nm, and
+for silver and SiO2 at 633 nm) and changes with resolution are taken from it.
 
-**Validation coverage.** The boundary design was chosen with the FEM on Au and checked on Au at
-633, 700 and 900 nm and SiO2 at 900 nm; the Fresnel check of the tip-free field ran at 1.5
-pixels/nm (production: 1 pixel/nm). Other wavelengths, materials and geometries rely on the
+**Validation coverage.** The boundary design was chosen with the FEM on Au; its checks cover Au
+at 525, 633, 700 and 900 nm, SiO2 at 900 nm and WS2/Au at 633 nm (FEM), and Au at 633 and
+900 nm and SiO2 at 900 nm (FDTD). Silver appears only in the FEM layer-transfer check. The
+Fresnel check of the tip-free field ran at 1.5 pixels/nm (production: 1 pixel/nm). Other wavelengths, materials and geometries rely on the
 same design and on the checklist of [setting_up_your_simulation.md](setting_up_your_simulation.md).

@@ -6,7 +6,8 @@ PML-free region (down-sampled by full_map_stride); inside the plasmon absorbers 
 physical (they damp only the scattered field). Maps are normalized by the tip-free
 intensity at the gap centre, so their value at the gap centre is EF. The maps of an
 existing run can be made without re-running (field_map(load_result(npz))). Default: the
-production domain on a coarse 2 nm grid, ~11 min with mpirun -np 8 on a CPU (~2-4 min on a GPU).
+production domain on a coarse 2 nm grid (a template: EF ~20 % low), ~11 min with mpirun -np 8 on
+a CPU (~2-4 min on a GPU).
 """
 
 from __future__ import annotations

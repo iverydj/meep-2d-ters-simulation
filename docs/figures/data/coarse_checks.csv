@@ -1,0 +1,17 @@
+group,setting,domain,resolution,wavelength_nm,EF_probe,n_cells,timesteps,time_stepping_s,setup_s,backend,processes
+"quick start (example 01, small domain, 2 nm cells)",fp32 gpmeep cpu np1,small,500,633.0,293.6966126219757,440000,11412,98.5,4.6,gpmeep FP32 CPU,1
+"quick start (example 01, small domain, 2 nm cells)",fp64 np1,small,500,633.0,293.7052176857029,440000,11412,98.6,4.7,upstream Meep FP64 CPU,1
+"quick start (example 01, small domain, 2 nm cells)",fp64 np8,small,500,633.0,293.7052176857029,440000,11412,17.4,1.2,upstream Meep FP64 CPU,8
+"coarse production domain (examples 02-04, 07)",baseline,production,500,633.0,115.82879057196374,6710000,10778,616.4,26.1,upstream Meep FP64 CPU,8
+"coarse production domain (examples 02-04, 07)",baseline,production,500,900.0,182.34334542757927,6710000,11713,684.8,0.0,upstream Meep FP64 CPU,8
+"example 08, domain variants (production domain, 2 nm cells)",PML x2,production,500,633.0,115.82576318694936,8450000,10778,97.6,184.4,gpmeep FP32 CUDA,1
+"example 08, domain variants (production domain, 2 nm cells)",absorber conductivity x1.5,production,500,633.0,115.84669164662361,6710000,10778,90.3,129.0,gpmeep FP32 CUDA,1
+"example 08, domain variants (production domain, 2 nm cells)",baseline,production,500,633.0,115.82578899227094,6710000,10778,88.4,130.2,gpmeep FP32 CUDA,1
+"example 08, domain variants (production domain, 2 nm cells)",drive ramp +0.5 um,production,500,633.0,115.7700773101815,6710000,11412,93.5,129.2,gpmeep FP32 CUDA,1
+"example 08, domain variants (production domain, 2 nm cells)",free region absorbers ramp +0.5 um,production,500,633.0,115.46301238715088,7920000,11412,99.5,150.9,gpmeep FP32 CUDA,1
+"example 08, resolution (small domain)",res1000,small,1000,633.0,352.59796133323175,1760000,19005,71.2,18.2,gpmeep FP32 CUDA,1
+"example 08, resolution (small domain)",res500,small,500,633.0,293.69675252514304,440000,11412,42.9,4.7,gpmeep FP32 CUDA,1
+"small domain, domain variants (2 nm cells)",PML x2,small,500,633.0,293.6965100968929,900000,11412,178.8,8.8,upstream Meep FP64 CPU,1
+"small domain, domain variants (2 nm cells)",absorber x1.5,small,500,633.0,292.17222688501903,440000,10778,88.3,4.8,upstream Meep FP64 CPU,1
+"small domain, domain variants (2 nm cells)",baseline,small,500,633.0,293.7052176857029,440000,11412,92.3,4.8,upstream Meep FP64 CPU,1
+"small domain, domain variants (2 nm cells)",moved 0.1 um,small,500,633.0,243.52369680252184,540000,9510,90.1,6.2,upstream Meep FP64 CPU,1

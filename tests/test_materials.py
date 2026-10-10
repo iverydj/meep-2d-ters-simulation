@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from conftest import requires_meep
 
-from ters2d.materials import AU, SIO2, WS2_MONOLAYER, Material, Pole, UniaxialMaterial, is_metallic
+from ters2d.materials import AG, AU, SIO2, WS2_MONOLAYER, Material, Pole, UniaxialMaterial, is_metallic
 
 F_DENSE = np.linspace(0.05, 5.0, 4000)  # 200 nm - 20 um
 
@@ -82,6 +82,8 @@ def test_au_matches_meep_library():
         assert complex(np.asarray(Au.epsilon(1e3 / wl))[0, 0]) == pytest.approx(complex(AU.epsilon(wl)), rel=1e-12)
     m = Material.from_meep("Au")
     assert m.poles == AU.poles and m.eps_inf == AU.eps_inf
+    ag = Material.from_meep("Ag")
+    assert ag.poles == AG.poles and ag.eps_inf == AG.eps_inf
 
 
 @requires_meep

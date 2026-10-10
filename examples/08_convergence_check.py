@@ -4,9 +4,10 @@ Three questions, answered separately (docs/setting_up_your_simulation.md, "Check
 
 1. Resolution: how does EF change with the cell size? The same model at several resolutions
    (the gap and the layers must be whole numbers of cells at every one). Run in the small
-   domain, where fine grids are cheap, this gives the trend and a LOWER bound of the
-   discretization error of a production run (validation.md: the small-domain series suggests
-   ~-5 % at 1 nm cells, the production FDTD is -7.7 % below the FEM).
+   domain, where fine grids are cheap, it shows the trend; the change between the finest grids
+   understates the remaining error (validation.md: +0.5 % from 2 to 3 px/nm, while the FDTD at
+   3 px/nm is still 2.2 % below the FEM of that domain). Measured against the FEM, the error
+   at 1 nm cells is about the same in the small and the production domain (-7.3 / -7.7 %).
 2. Domain: is EF independent of where the boundaries are? One variant at a time, relative to
    the domain you use for your numbers (here the production domain): free region, absorbers
    and drive ramp moved up/out; drive ramp alone moved up; absorbers 1.5x stronger; PML 2x

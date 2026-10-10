@@ -3,7 +3,9 @@
 The gap (apex to sample surface) must be a whole number of grid cells: multiples of 2 nm
 on the default 2 nm grid, of 1 nm at resolution 1000. Each gap is its own geometry and run
 directory. Use at least two cells across the gap for quantitative values (see
-docs/validation.md: one cell underestimates EF by ~10-16 %). Default: the production domain
+docs/validation.md: one cell underestimates EF by ~10-16 %); on the default 2 nm grid the gaps
+have 1, 2, 3 and 5 cells, so their errors differ (at 1 nm cells: -16 % for one cell, -1 % for
+six) and the fitted g-dependence is biased; use resolution 1000 or finer for a real sweep. Default: the production domain
 on a coarse 2 nm grid, ~11 min per gap with mpirun -np 8 on a CPU (~2-4 min on a GPU); sweeps
 need the production domain, the small domain does not preserve them.
 """
