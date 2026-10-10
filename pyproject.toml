@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ters2d"
+version = "1.0.0"
+description = "2D FDTD simulation of gap-mode tip-enhanced Raman (TERS) near fields with Meep or gpmeep"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Dong-Joon Yi" }]
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.23", "scipy>=1.9", "matplotlib>=3.6"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+fem = ["ngsolve>=6.2.2404"]
+
+[project.urls]
+Repository = "https://github.com/iverydj/meep-2d-ters-simulation"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+ters2d = ["data/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 130
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]

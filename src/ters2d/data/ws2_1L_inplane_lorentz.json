@@ -1,0 +1,60 @@
+{
+  "type": "isotropic",
+  "name": "WS2 monolayer, in-plane (Lorentz fit)",
+  "eps_inf": 2.79836224585995,
+  "valid_wavelength_nm": [
+    480.0,
+    900.0
+  ],
+  "reference": "data: G. A. Ermolaev et al., J. Vac. Sci. Technol. B 38, 014002 (2020), doi:10.1116/1.5122683",
+  "convention": "eps_inf + sum sigma f0^2/(f0^2 - f^2 - i f gamma) (lorentz), sigma f0^2/(-f^2 - i f gamma) (drude); f, f0, gamma in 1/um (Meep units, f = 1000 / wavelength_nm)",
+  "poles": [
+    {
+      "kind": "lorentz",
+      "frequency": 1.65587194027217,
+      "gamma": 0.042934778351089754,
+      "sigma": 0.12814045854851108
+    },
+    {
+      "kind": "lorentz",
+      "frequency": 1.637198859595876,
+      "gamma": 0.04477860424484283,
+      "sigma": 0.2893357866035253
+    },
+    {
+      "kind": "lorentz",
+      "frequency": 1.9293683359247609,
+      "gamma": 0.07893598133033837,
+      "sigma": 0.2159177412660273
+    },
+    {
+      "kind": "lorentz",
+      "frequency": 1.9958988328548848,
+      "gamma": 0.1035625843637421,
+      "sigma": 0.22847618651758347
+    },
+    {
+      "kind": "lorentz",
+      "frequency": 2.1092831084540817,
+      "gamma": 0.14080261021816196,
+      "sigma": 0.2726916048652618
+    },
+    {
+      "kind": "lorentz",
+      "frequency": 2.4401329855786056,
+      "gamma": 0.020000000000000004,
+      "sigma": 2.738665361194877
+    },
+    {
+      "kind": "lorentz",
+      "frequency": 2.2257485008321614,
+      "gamma": 0.11453786201954534,
+      "sigma": 0.5405876737140954
+    }
+  ],
+  "fit_quality": {
+    "rel_rms": 0.022555717191977104,
+    "rel_max": 0.04950252024214933,
+    "min_im_eps_200nm_to_20um": 0.0023871233361023895
+  }
+}

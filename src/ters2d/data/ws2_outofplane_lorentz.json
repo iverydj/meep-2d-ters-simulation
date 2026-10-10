@@ -1,0 +1,24 @@
+{
+  "type": "isotropic",
+  "name": "WS2 out-of-plane (bulk extraordinary data, Lorentz fit)",
+  "eps_inf": 1.0000000000000158,
+  "valid_wavelength_nm": [
+    480.0,
+    900.0
+  ],
+  "reference": "data: B. Munkhbat et al., ACS Photonics 9, 2398 (2022), doi:10.1021/acsphotonics.2c00433",
+  "convention": "eps_inf + sum sigma f0^2/(f0^2 - f^2 - i f gamma) (lorentz), sigma f0^2/(-f^2 - i f gamma) (drude); f, f0, gamma in 1/um (Meep units, f = 1000 / wavelength_nm)",
+  "poles": [
+    {
+      "kind": "lorentz",
+      "frequency": 4.643138886460865,
+      "gamma": 0.019999999980000006,
+      "sigma": 4.924975474293553
+    }
+  ],
+  "fit_quality": {
+    "rel_rms": 0.0017290667741993943,
+    "rel_max": 0.0024896715174628293,
+    "min_im_eps_200nm_to_20um": 0.00022849749905307917
+  }
+}

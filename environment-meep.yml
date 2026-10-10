@@ -1,0 +1,15 @@
+# Upstream Meep (CPU, double precision, MPI) from conda-forge.
+#   conda env create -f environment-meep.yml && conda activate ters2d-meep && pip install -e .
+# For the GPU, install gpmeep (https://github.com/iverydj/gpmeep-releases) in its own
+# environment instead; it provides the same `import meep` interface. Do not install both
+# in one environment.
+name: ters2d-meep
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pymeep=1.34.*=mpi_mpich_*
+  - numpy
+  - scipy
+  - matplotlib
+  - pytest

@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "meep-2d-ters-simulation: 2D FDTD simulation of gap-mode tip-enhanced Raman near fields with Meep"
+type: software
+authors:
+  - family-names: Yi
+    given-names: Dong-Joon
+    website: "https://iverydj.github.io/"
+license: MIT
+version: 1.0.0
+repository-code: "https://github.com/iverydj/meep-2d-ters-simulation"
+keywords:
+  - tip-enhanced Raman spectroscopy
+  - TERS
+  - gap plasmon
+  - FDTD
+  - Meep
+  - nanophotonics
