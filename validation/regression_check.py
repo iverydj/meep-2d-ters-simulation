@@ -84,19 +84,6 @@ def main(cfg: AppConfig) -> None:
             }
         )
         print(f"ratio {a.wavelength_nm:.0f} nm: {ratio:.6f} vs reference {ref:.6f} ({ratio / ref - 1:+.2e})", flush=True)
-    # The reference runs measured the domain heights from the gold surface, this code from the top of the
-    # sample: lowering every height by the layer thickness re-creates the reference geometry exactly.
-    t = 2.0 / 3.0 * 1e-3
-    old = Numerics.small(
-        resolution=1500,
-        y_max_um=0.6 - t,
-        shaft_absorber_start_um=0.35 - t,
-        side_absorber_top_um=0.35 - t,
-        drive_ramp_um=(0.35 - t, 0.6 - t),
-    )
-    ws2_old = spectrum(ws2.with_value("numerics", old), cfg.ws2_wavelengths_nm, cfg.run_root / "small_WS2-Au_res1500_heights_from_Au")
-    compare("small WS2/Au, 1.5 px/nm, heights from the Au surface", ws2_old, "ws2_on_au_fdtd.csv", "EF_probe_WS2")
-
     au = spectrum(Model(sample=Sample(AU)), cfg.au_wavelengths_nm, cfg.run_root / "production_Au")
     compare("production Au", au, "spectrum_Au_fdtd.csv", "EF_probe")
     sio2 = spectrum(Model(sample=Sample(SIO2)), cfg.sio2_wavelengths_nm, cfg.run_root / "production_SiO2")

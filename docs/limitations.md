@@ -9,9 +9,12 @@ between 500 and 900 nm for R = 20 nm) and the substrate contrast are those of th
 should not be compared one-to-one with 3D tips or experiments. The semi-infinite wedge casts a
 full shadow (see the field maps), and its shaft plasmons propagate without geometric spreading;
 here they add only ~3 % to the gap field, but they made the termination of the shaft the
-hardest numerical problem of the model. What transfers to 3D are mechanisms and trends: the
-gap mode over a metal, the gap and radius dependence, the effect of a dielectric layer in the
-gap.
+hardest numerical problem of the model. What is expected to carry over to 3D, without being
+tested here (no 3D or axisymmetric calculation is part of this repository), are mechanisms and
+qualitative trends: the gap mode over a metal and its rapid rise as the gap closes, the
+weaker, less confined field over a dielectric, and the effect of a high-permittivity layer in
+the gap. The non-monotonic radius dependence is specific to the 2D wedge (an isolated
+cylinder above gold gives a monotonic trend) and should not be expected in 3D.
 
 **Local, bulk optics.** All materials are bulk permittivities. There is no nonlocal response,
 electron spill-out or quantum tunnelling, which matter for gaps below ~1 nm and reduce the
@@ -31,13 +34,20 @@ time-domain implementation (grid, boundaries, pulse/DFT), not the modelling choi
 probed by the domain, beam and absorber variations in [validation.md](validation.md).
 
 **Staircased geometry.** Meep does not smooth dispersive interfaces, so the curved apex and the
-wedge faces are staircased. At 1 nm cells this makes the FDTD 5–16 % low (−8 % at 633 nm);
-finer grids or the FEM give the converged value. Layers are snapped to whole cells.
+wedge faces are staircased. At 1 nm cells this makes the FDTD 5.3–15.9 % low for the 2 nm gap
+and R = 20 nm (−7.7 % at 633 nm; less for larger gaps and radii, more for a 1 nm gap); finer
+grids or the FEM give the converged value. Layers are snapped to whole cells.
 
 **Illumination.** p polarization only (the 2D TE problem has no gap mode); one in-plane
-direction of incidence; a Gaussian angular spectrum cut at ±2 divergence angles. The
-illuminated length of the semi-infinite shaft is a modelling choice set by the beam width and
-the drive ramp.
+direction of incidence, from the air side; a Gaussian angular spectrum cut at ±2 divergence
+angles, so incidence ± 2 divergence must stay below 90° (no high-NA beams). The illuminated
+length of the semi-infinite shaft is a modelling choice set by the beam width and the drive
+ramp; the default domain covers incidence near 60° and 500–900 nm (the shaft-illumination
+check refuses anything else until the domain is enlarged).
+
+**Ambient and tip.** The space around the tip is air (ε = 1): the source current uses ε_tip − 1
+and the tip-free field has air above the sample. Immersion media and coated or layered tips are
+not modelled; the tip is one homogeneous isotropic material.
 
 **Raman estimate.** EF² (or the axis average `EF4_gap`) assumes equal enhancement at the laser
 and Stokes wavelengths and the field at the gap centre; `analysis.raman_enhancement` uses the
@@ -49,6 +59,14 @@ metal or thick dispersive layers, and dispersive non-metallic substrates crossin
 Run the checklist of [setting_up_your_simulation.md](setting_up_your_simulation.md) before
 trusting such a case.
 
-**Small domain.** The small domain gives absolute values 2.5 times those of the production
-domain and depends at first order on where the drive ramp sits relative to the tip; only
-ratios at equal settings are meaningful there.
+**Small domain.** The small domain is a different model (a shorter illuminated shaft): its
+absolute values are 2.5 times those of the production domain at 633 nm (1.4 times
+at 900 nm), they depend at first order on where the drive ramp sits relative to the tip, and the
+domain does not preserve spectral shapes or substrate contrasts. Only the effect of a thin layer
+on the same substrate at the same wavelength (validated for gold) and changes with resolution
+are taken from it.
+
+**Validation coverage.** The boundary design was chosen with the FEM on Au and checked on Au at
+633, 700 and 900 nm and SiO2 at 900 nm; the Fresnel check of the tip-free field ran at 1.5
+pixels/nm (production: 1 pixel/nm). Other wavelengths, materials and geometries rely on the
+same design and on the checklist of [setting_up_your_simulation.md](setting_up_your_simulation.md).

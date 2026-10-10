@@ -1,9 +1,10 @@
 """Sensitivity of the production results to the domain, boundaries, absorbers and illuminated shaft.
 
-Variants of the production domain, one factor at a time, at the production resolution:
+Variants of the production domain, one variant at a time, at the production resolution:
   baseline         Numerics.production()
-  taller           free region, absorbers and drive ramp moved up/out by 0.5 um / 0.2 um
-                   (illuminated shaft length and absorber position)
+  taller           top of the free region, shaft absorber and drive ramp +0.5 um; free-region
+                   width and side-absorber start +0.2 um; side-absorber top +0.3 um
+                   (illuminated shaft length and absorber position, moved together)
   absorber_strong  absorber conductivity 1.5x (the absorbers' own reflection)
   thick_pml        PML twice as thick
 GPU recommended (~1.5 h on an RTX A6000 with gpmeep). The FEM reference checks the same

@@ -3,7 +3,7 @@
 Production set-up (Numerics.production(1000): 1 nm cells, ~27-29 million cells). One
 simulation per wavelength, structure built once per sample. Writes
 spectrum_Au_fdtd.csv and spectrum_SiO2_fdtd.csv (the tables in docs/figures/data).
-GPU: ~1.7 h (Au, 13 wavelengths) + ~1 h (SiO2, 7 wavelengths) on one RTX A6000 with gpmeep.
+GPU: ~1.6 h (Au, 12 wavelengths) + ~1 h (SiO2, 7 wavelengths) on one RTX A6000 with gpmeep.
 The run directories are reused by field_maps.py.
 """
 

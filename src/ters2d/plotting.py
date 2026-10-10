@@ -361,11 +361,11 @@ def _draw_domain(ax, layout, annotate=True):
         )
     )
     hatch = dict(fc="none", ec=SERIES[2], lw=0, hatch="////", alpha=0.75)
-    ax.add_patch(Rectangle((px0, num.shaft_absorber_start_um), px1 - px0, py1 - num.shaft_absorber_start_um, **hatch))
+    ax.add_patch(Rectangle((px0, layout.shaft_absorber_start), px1 - px0, py1 - layout.shaft_absorber_start, **hatch))
     if layout.side_absorbers:
         w = px1 - num.side_absorber_start_um
         for x0 in (px0, num.side_absorber_start_um):
-            ax.add_patch(Rectangle((x0, 0.0), w, num.side_absorber_top_um, **hatch))
+            ax.add_patch(Rectangle((x0, 0.0), w, layout.side_absorber_top, **hatch))
     tip = layout.tip
     o = tip.outline(py1)
     ax.add_patch(Polygon(o, closed=True, fc=METAL, ec=METAL_EDGE, lw=0.6))
@@ -376,7 +376,7 @@ def _draw_domain(ax, layout, annotate=True):
     if layout.substrate_metallic:
         for x0, x1 in ((cx0, px0), (px1, cx1)):
             ax.add_patch(Rectangle((x0, cy0), x1 - x0, top - cy0, fc=cond, ec="none"))
-    r0, r1 = num.drive_ramp_um
+    r0, r1 = layout.drive_ramp
     ax.plot([0, 0], [0.12, r0], color=SERIES[1], lw=2.4, solid_capstyle="butt")
     ax.plot([0, 0], [r0, r1], color=SERIES[1], lw=2.4, ls=(0, (1.5, 1)), solid_capstyle="butt")
     if annotate:
@@ -387,7 +387,7 @@ def _draw_domain(ax, layout, annotate=True):
         ax.text(cx0 + 0.5 * (px0 - cx0), 0.5 * (py0 + py1), "PML", rotation=90, ha="center", va="center", **kw)
         ax.text(
             px0 + 0.05,
-            0.5 * (num.shaft_absorber_start_um + py1),
+            0.5 * (layout.shaft_absorber_start + py1),
             "shaft\nplasmon\nabsorber",
             ha="left",
             va="center",
@@ -396,7 +396,7 @@ def _draw_domain(ax, layout, annotate=True):
         )
         if layout.side_absorbers:
             ax.text(
-                px1 - 0.05, num.side_absorber_top_um + 0.08, "side plasmon\nabsorber", ha="right", va="bottom", bbox=box, **kw
+                px1 - 0.05, layout.side_absorber_top + 0.08, "side plasmon\nabsorber", ha="right", va="bottom", bbox=box, **kw
             )
         ax.text(0.06, 0.5 * (r0 + r1), "drive\nramp", ha="left", va="center", color=SERIES[1], fontsize=6.6, bbox=box)
         ax.text(
@@ -533,7 +533,7 @@ def plot_scattered_field_idea(layout, wavelength_nm: float, fmap: FieldMap | Pat
     ax = axes[1]
     X, Y = np.meshgrid(xs, ys, indexing="ij")
     inside = layout.tip.contains(X, Y)
-    jmag = np.where(inside, np.sqrt(e2b) * drive_weight(Y, layout.model.numerics.drive_ramp_um), np.nan)
+    jmag = np.where(inside, np.sqrt(e2b) * drive_weight(Y, layout.drive_ramp), np.nan)
     ax.add_patch(Polygon(o, closed=True, fc="none", ec=INK2, lw=0.6))
     ax.pcolormesh(xs * 1e3, ys * 1e3, jmag.T, shading="nearest", cmap="Oranges")
     ax.set_title(
@@ -584,10 +584,10 @@ def plot_boundaries(layout, out_png: Path) -> Path:
     ax1.set_title(f"(b) matched lossy-air absorber, σ ∝ (s/L)$^{num.absorber_power}$")
     ax1.legend(fontsize=7)
     ax2 = fig.add_subplot(gs[1, 1])
-    y = np.linspace(0, num.y_max_um, 600)
-    ax2.plot(y, drive_weight(y, num.drive_ramp_um), color=SERIES[1], lw=1.6)
-    ax2.axvspan(num.shaft_absorber_start_um, num.y_max_um, color=SERIES[2], alpha=0.12, lw=0)
-    ax2.text(num.shaft_absorber_start_um + 0.05, 0.5, "shaft\nabsorber", fontsize=7, color=INK2)
+    y = np.linspace(0, layout.y_top, 600)
+    ax2.plot(y, drive_weight(y, layout.drive_ramp), color=SERIES[1], lw=1.6)
+    ax2.axvspan(layout.shaft_absorber_start, layout.y_top, color=SERIES[2], alpha=0.12, lw=0)
+    ax2.text(layout.shaft_absorber_start + 0.05, 0.5, "shaft\nabsorber", fontsize=7, color=INK2)
     ax2.set_xlabel("height on the shaft y (µm)")
     ax2.set_ylabel("drive weight")
     ax2.set_title("(c) scattered-field drive of the shaft (cos² ramp)")

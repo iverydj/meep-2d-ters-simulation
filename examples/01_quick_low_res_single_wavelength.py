@@ -3,8 +3,9 @@
 Au tip (apex radius 20 nm, half-angle 15 deg) 2 nm above Au, 60 deg p-polarized Gaussian
 beam at 633 nm, in the small domain at 2 nm cells (the gap is a single cell). This is a
 smoke test and a template, not a converged number: the reference value of this geometry
-(production domain, 1 nm cells) is EF = 140 (FDTD) / 152 (FEM); the small domain gives
-larger absolute values (see docs/setting_up_your_simulation.md).
+(production domain, 1 nm cells) is EF = 140 (FDTD) / 152 (FEM). The small domain is a
+different, cheaper model (shorter illuminated shaft) with larger absolute values; use it to learn
+the workflow, then switch to Numerics.production (docs/setting_up_your_simulation.md).
 
     python examples/01_quick_low_res_single_wavelength.py
     MEEP_GPU_BACKEND=cuda python examples/01_quick_low_res_single_wavelength.py   # gpmeep on a GPU

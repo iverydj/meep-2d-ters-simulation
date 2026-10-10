@@ -43,10 +43,13 @@ shift_cm1)` returns EF(laser) × EF(Stokes) interpolated from a computed EF spec
 
 `field_map(result)` returns a `FieldMap`: |E|² / |E_ref(probe)|² on the near-field box (by
 default 300 × 130 nm around the apex at full resolution), NaN inside the tip and the
-substrate, plus the tip outline and the layer positions; at the probe its value is EF.
+substrate, plus the tip outline and the layer positions; at the probe its value is ≈ EF
+(the map interpolates |E|², EF the complex field: they differ by ~0.3 % at the gap centre).
 `plot_field_map` draws it on a log scale. With `Outputs(full_map=True)` every run also stores
 the whole PML-free region (down-sampled by `full_map_stride`), available as
-`field_map(result, "full")`.
+`field_map(result, "full")`. Inside the plasmon absorbers the total field of such a map is not
+physical: the absorbers damp only the scattered field, while the analytic tip-free field is
+added unchanged (the steps of the absorber profile can show up there).
 
 ![field map](figures/fieldmap_Au_633nm.png)
 
@@ -67,9 +70,11 @@ Each wavelength writes two files into the run directory:
   `shaft_illumination_at_ramp` and the backend (Meep version, MPI processes, gpmeep CUDA or
   CPU).
 
-A run directory is reused when the stored model equals the requested one, so an interrupted
-spectrum resumes; a file computed with other settings raises an error instead of being
-mixed in. Load any run with `load_result(path_to_npz)`.
+A run directory is reused when the stored model and the ters2d version equal the requested
+ones, so an interrupted spectrum resumes; a file computed with other settings raises an error
+instead of being mixed in. A wavelength whose DFT fields did not converge writes no file (the
+run raises), so it can be repeated with other settings. Load any run with
+`load_result(path_to_npz)`.
 
 The examples and reproduction scripts put raw runs under `runs/<hostname>/<run-id>/` and
 tables and figures under `results/<hostname>/<run-id>/` (both are git-ignored).

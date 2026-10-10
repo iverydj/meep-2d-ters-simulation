@@ -119,6 +119,30 @@ class Layout:
         """Total (snapped) thickness of the layers."""
         return -self.layers[0][0] if self.layers else 0.0
 
+    # Heights of Numerics are measured from the substrate surface (y = -thickness), so that adding
+    # layers at a fixed tip-substrate distance leaves every boundary where it was relative to the tip.
+    @property
+    def substrate_surface(self) -> float:
+        return -self.thickness
+
+    @property
+    def shaft_absorber_start(self) -> float:
+        return self.substrate_surface + self.model.numerics.shaft_absorber_start_um
+
+    @property
+    def side_absorber_top(self) -> float:
+        return self.substrate_surface + self.model.numerics.side_absorber_top_um
+
+    @property
+    def drive_ramp(self) -> tuple[float, float]:
+        r0, r1 = self.model.numerics.drive_ramp_um
+        return (self.substrate_surface + r0, self.substrate_surface + r1)
+
+    @property
+    def y_top(self) -> float:
+        """Top of the free region (not snapped; ``phys_hi[1]`` is the snapped value)."""
+        return self.substrate_surface + self.model.numerics.y_max_um
+
     @property
     def cell_size(self):
         return (self.cell_hi[0] - self.cell_lo[0], self.cell_hi[1] - self.cell_lo[1])
@@ -183,7 +207,7 @@ def build_layout(model: Model, wavelengths_nm) -> Layout:
     side_abs = (sub_metal or any(lay_metal)) if num.side_absorbers is None else bool(num.side_absorbers)
 
     phys_lo = [_snap(-num.x_half_width_um, dx, "floor"), _snap(-total - num.substrate_depth_um, dx, "floor")]
-    phys_hi = [_snap(num.x_half_width_um, dx, "ceil"), _snap(num.y_max_um, dx, "ceil")]
+    phys_hi = [_snap(num.x_half_width_um, dx, "ceil"), _snap(num.y_max_um - total, dx, "ceil")]
     pml = _snap(num.pml_um, dx, "ceil")
     bottom = pml if bottom_pml else 0.0
     ny = round((phys_hi[1] - phys_lo[1] + pml + bottom) * res)
@@ -217,13 +241,22 @@ def build_layout(model: Model, wavelengths_nm) -> Layout:
     x0, x1, y0, y1 = (v * 1e-3 for v in model.outputs.near_box_nm)
     if not (phys_lo[0] < x0 and x1 < phys_hi[0] and phys_lo[1] < y0 and y1 < phys_hi[1]):
         raise ValueError("near_box_nm must lie inside the PML-free region")
-    if not (x0 <= probe[0] <= x1 and y0 <= probe[1] <= y1):
-        raise ValueError("the probe must lie inside near_box_nm")
+    if not (x0 + dx <= probe[0] <= x1 - dx and y0 + dx <= probe[1] <= y1 - dx):
+        raise ValueError("the probe must lie at least one cell inside near_box_nm")
+    if any(abs(probe[1] - yy) < 1e-9 for lay_ in layers for yy in lay_) or abs(probe[1]) < 1e-9:
+        raise ValueError("the probe lies exactly on an interface; move it off the interface")
+    if layers and y0 > layers[-1][0] - dx:
+        raise ValueError("near_box_nm must reach below the top layer (EF_layer averages over the whole top layer)")
     hw_top = float(tip.half_width(cell_hi[1]))
     if hw_top >= phys_hi[0]:
-        raise ValueError("the tip shaft would enter the side PML; increase x_half_width_um")
-    if side_abs and float(tip.half_width(num.side_absorber_top_um)) >= num.side_absorber_start_um:
-        raise ValueError("the tip shaft would enter the side plasmon absorbers; increase side_absorber_start_um")
+        raise ValueError("the tip shaft would enter the side PML; increase x_half_width_um (and side_absorber_start_um)")
+    if side_abs and float(tip.half_width(num.side_absorber_top_um - total)) >= num.side_absorber_start_um:
+        raise ValueError(
+            "the tip shaft would enter the side plasmon absorbers: widen the domain (x_half_width_um) and move "
+            "side_absorber_start_um out with it"
+        )
+    if num.side_absorber_top_um - total <= 0 or num.shaft_absorber_start_um - total <= gap:
+        raise ValueError("the layers are thicker than the absorber heights allow (heights are measured from the substrate)")
     return Layout(
         model=model,
         dx=dx,

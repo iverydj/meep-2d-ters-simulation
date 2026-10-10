@@ -3,7 +3,9 @@
 The gap (apex to sample surface) must be a whole number of grid cells: multiples of 2 nm
 on the default 2 nm grid, of 1 nm at resolution 1000. Each gap is its own geometry and run
 directory. Use at least two cells across the gap for quantitative values (see
-docs/validation.md: one cell underestimates EF by ~10-16 %).
+docs/validation.md: one cell underestimates EF by ~10-16 %). Default: the production domain
+on a coarse 2 nm grid, ~11 min per gap with mpirun -np 8 on a CPU (~2-4 min on a GPU); sweeps
+need the production domain, the small domain does not preserve them.
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ from ters2d.plotting import plot_sweep
 
 @dataclass
 class AppConfig:
-    model: Model = field(default_factory=lambda: Model(sample=Sample(materials.AU), numerics=Numerics.small(resolution=500)))
+    model: Model = field(default_factory=lambda: Model(sample=Sample(materials.AU), numerics=Numerics.production(resolution=500)))
     gaps_nm: list = field(default_factory=lambda: [2.0, 4.0, 6.0, 10.0])
     wavelength_nm: float = 633.0
     run_root: Path = Path("runs") / platform.node() / "03_gap_sweep"

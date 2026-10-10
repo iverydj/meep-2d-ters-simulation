@@ -51,7 +51,7 @@ def main(cfg: AppConfig) -> None:
                 "gap_nm": round(metal_gap, 6),
                 "resolution": res,
                 "dx_nm": 1e3 / res,
-                "gap_cells": gap * res / 1e3,
+                "gap_cells": round(metal_gap * res / 1e3, 6),  # cells between apex and substrate
                 **r.row(),
             }
         )

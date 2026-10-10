@@ -12,6 +12,7 @@ Boundary rules (see docs/model.md, "Boundaries"):
   impedance-matched lossy air (equal electric and magnetic conductivity) before they reach
   the PML: around the shaft above ``shaft_absorber_start_um`` and, with side absorbers,
   above the sample for |x| >= ``side_absorber_start_um``. The metal itself is unchanged.
+  Heights are measured from the substrate surface (``Layout.shaft_absorber_start`` etc.).
 """
 
 from __future__ import annotations
@@ -112,7 +113,7 @@ def meep_geometry(layout: Layout) -> list:
     y_far = layout.cell_hi[1] + 1.0
     for y0, y1, mat in ((tip.tangent_y, y_pml, tip_med), (y_pml, y_far, tip_pml)):
         objs.append(mp.Block(center=mp.Vector3(0, 0.5 * (y0 + y1)), size=mp.Vector3(2 * big, y1 - y0, mp.inf), material=mat))
-    d_abs = (num.shaft_absorber_start_um - tip.tangent_y) / np.cos(a)  # distance along a face
+    d_abs = (layout.shaft_absorber_start - tip.tangent_y) / np.cos(a)  # distance along a face
     d_top = (y_pml - tip.tangent_y) / np.cos(a)
     edges = np.linspace(d_abs, d_top, num.absorber_segments + 1)
     bands = [(-big, d_abs, mp.air)] + [(d0, d1, m) for d0, d1, m in zip(edges[:-1], edges[1:], absorber)] + [(d_top, big, mp.air)]
@@ -161,7 +162,7 @@ def meep_geometry(layout: Layout) -> list:
     if layout.side_absorbers:
         # surface-plasmon absorber: graded lossy air above the sample near the sides
         edges = np.linspace(num.side_absorber_start_um, x_pml, num.absorber_segments + 1)
-        y0, y1 = nudge, num.side_absorber_top_um
+        y0, y1 = nudge, layout.side_absorber_top
         for x0, x1, mat in zip(edges[:-1], edges[1:], absorber):
             for sgn in (-1.0, 1.0):
                 objs.append(

@@ -10,7 +10,8 @@ with the starting poles of the packaged fit; for your material:
    poles above the window for the background; start widths at the feature widths;
 3. fit a window slightly wider than the wavelengths you will simulate, and set
    valid_wavelength_nm to the range you trust (simulations outside it raise an error);
-4. check rel_rms (a few % is typical) and min Im(eps) >= 0, and look at the plot;
+4. check rel_rms (a few % is typical), min Im(eps) >= 0 and the pole warnings (poles at the
+   minimum width or outside the window), and look at the plot;
 5. use the saved JSON: Material.load_json(path); for an anisotropic layer combine two fits
    in UniaxialMaterial(name, in_plane=..., out_of_plane=...).
 
@@ -26,7 +27,7 @@ from pathlib import Path
 import numpy as np
 
 from ters2d import Layer, Material, Sample, UniaxialMaterial, materials
-from ters2d.fitting import fit_lorentz, fit_quality, read_nk_csv
+from ters2d.fitting import fit_lorentz, fit_quality, pole_warnings, read_nk_csv
 from ters2d.plotting import plot_lorentz_fit
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -64,6 +65,8 @@ def main(cfg: AppConfig) -> None:
     )
     if q["rel_rms"] > cfg.max_rel_rms or q["min_im_eps_200nm_to_20um"] < 0:
         raise RuntimeError("fit rejected: adjust initial_poles_eV or the window")
+    for w in pole_warnings(mat, cfg.fit_window_nm):
+        print("check:", w)  # e.g. the packaged WS2 fit has a narrow pole at 410 nm (C exciton side)
     cfg.out_dir.mkdir(parents=True, exist_ok=True)
     js = cfg.out_dir / "material.json"
     mat.save_json(js, extra={"fit_quality": q})

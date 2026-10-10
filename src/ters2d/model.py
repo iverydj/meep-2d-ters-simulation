@@ -153,13 +153,18 @@ class Numerics:
             y <= side_absorber_top_um, for the plasmons of a metal surface. None: on if the
             substrate or a layer is metallic.
         side_absorber_start_um, side_absorber_top_um: extent of the side absorbers.
-        absorber_conductivity: electric and magnetic conductivity at the outer end (Meep
-            units, 2 pi c / um); the profile grows as (s / L) ** absorber_power in
-            absorber_segments steps.
+        absorber_conductivity: electric and magnetic conductivity at the outer end, in Meep's
+            angular-frequency units (c/um): eps = mu = 1 + i sigma / omega, omega = 2 pi / wavelength_um;
+            the profile grows as (s / L) ** absorber_power in absorber_segments steps.
     Drive of the shaft
         drive_ramp_um: (y0, y1): the scattered-field drive on the tip has full weight up
             to y0 and falls to 0 at y1 (cos^2). Place it inside the shaft absorber, where
             the beam no longer reaches the shaft.
+        max_shaft_illumination: a run is refused if |E_bg|^2 on the shaft faces at the start
+            of the ramp exceeds this fraction of |E_bg|^2 at the probe (the cut of the drive
+            would then change EF by more than ~1 %); None disables the check.
+    Heights (y_max_um, shaft_absorber_start_um, side_absorber_top_um, drive_ramp_um) are
+    measured from the substrate surface, i.e. from the bottom of the layers.
     Time stepping
         courant: Courant number (Meep default 0.5).
         pulse_fwidth_rel, pulse_cutoff: Gaussian pulse width / centre frequency and cutoff;
@@ -188,6 +193,7 @@ class Numerics:
     absorber_power: int = 3
     absorber_segments: int = 30
     drive_ramp_um: tuple[float, float] = (3.5, 4.5)
+    max_shaft_illumination: float | None = 2e-3
     courant: float = 0.5
     pulse_fwidth_rel: float = 1.5
     pulse_cutoff: float = 4.0
@@ -215,6 +221,8 @@ class Numerics:
         r0, r1 = self.drive_ramp_um
         if not 0 < r0 < r1 <= self.y_max_um:
             raise ValueError("drive_ramp_um must satisfy 0 < start < end <= y_max_um")
+        if self.max_shaft_illumination is not None and not self.max_shaft_illumination > 0:
+            raise ValueError("max_shaft_illumination must be > 0 or None")
         if self.chunk_layout not in ("auto", "banded", "meep"):
             raise ValueError("chunk_layout must be 'auto', 'banded' or 'meep'")
         if not 0 < self.courant <= 0.5 * 2**0.5:
@@ -236,8 +244,10 @@ class Numerics:
         Same boundary treatment as the production domain, but short, steep absorbers and a
         shaft drive ramped down between 0.35 and 0.6 um, i.e. the shaft is illuminated
         over a much shorter length. Absolute enhancement factors differ from the production
-        domain (2.5 times larger for the default case: EF 352.6 vs 139.7 at 1 nm cells);
-        ratios between resolutions or between samples taken in this domain are what it is for.
+        domain (2.5 times larger for the default case: EF 352.6 vs 139.7 at 1 nm cells), move
+        at first order with the position of the drive ramp relative to the tip, and spectral
+        shapes and substrate contrasts are not preserved. Two things transfer: the effect of a
+        thin layer on the same substrate at the same wavelength, and changes with resolution.
         """
         kw = dict(
             x_half_width_um=0.4,
@@ -250,6 +260,7 @@ class Numerics:
             absorber_power=2,
             absorber_segments=10,
             drive_ramp_um=(0.35, 0.6),
+            max_shaft_illumination=None,  # by design: the drive is cut on an illuminated shaft
         )
         kw.update(overrides)
         return cls(resolution=resolution, **kw)

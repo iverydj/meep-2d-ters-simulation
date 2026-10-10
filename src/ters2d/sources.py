@@ -38,7 +38,7 @@ def tip_box(layout: Layout):
     """Rectangle (x0, x1, y0, y1) containing the driven part of the tip (apex to the end of the drive ramp)."""
     tip = layout.tip
     dx = layout.dx
-    y0, y1 = tip.apex_y - dx, layout.model.numerics.drive_ramp_um[1]
+    y0, y1 = tip.apex_y - dx, layout.drive_ramp[1]
     hw = float(tip.half_width(np.array([y1]))[0]) + 2 * dx
     return (-hw, hw, y0, y1)
 
@@ -103,5 +103,5 @@ def tip_sources(layout: Layout, wavelength_nm: float, src_time):
     beam = background_beam(layout, wavelength_nm)
     stack = layout.stack(wavelength_nm)
     eps_tip = complex(layout.model.tip.material.epsilon(wavelength_nm))
-    ramp = layout.model.numerics.drive_ramp_um
+    ramp = layout.drive_ramp
     return volume_sources(layout.tip, tip_box(layout), layout.dx, beam, stack, eps_tip, src_time, ramp=ramp)

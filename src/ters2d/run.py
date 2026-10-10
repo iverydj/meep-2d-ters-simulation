@@ -22,6 +22,7 @@ from pathlib import Path
 
 import numpy as np
 
+from ._version import __version__
 from .background import beam_fields, beam_fields_grid
 from .layout import Layout, build_layout
 from .model import Model
@@ -60,7 +61,7 @@ def shaft_illumination(layout: Layout, wavelength_nm: float) -> float:
     """
     beam = background_beam(layout, wavelength_nm)
     stack = layout.stack(wavelength_nm)
-    y0 = layout.model.numerics.drive_ramp_um[0]
+    y0 = layout.drive_ramp[0]
     hw = float(layout.tip.half_width(y0)) + layout.dx
     _, ex, ey = beam_fields(beam, stack, np.array([-hw, hw, layout.probe[0]]), np.array([y0, y0, layout.probe[1]]))
     e2 = np.abs(ex) ** 2 + np.abs(ey) ** 2
@@ -153,9 +154,23 @@ def _check_existing(out_dir: Path, model: Model, wavelengths) -> list[float]:
             todo.append(w)
             continue
         old = json.loads(output_file(out_dir, w, ".json").read_text(encoding="utf-8"))
-        if old["model"] != rec:
-            raise ValueError(f"{f} exists but was computed with other settings; use another out_dir")
+        if old["model"] != rec or old.get("ters2d_version") != __version__:
+            raise ValueError(f"{f} exists but was computed with other settings or another ters2d version; use another out_dir")
     return todo
+
+
+def check_shaft_illumination(layout: Layout, wavelengths) -> dict:
+    """shaft_illumination per wavelength; raises if one exceeds Numerics.max_shaft_illumination."""
+    vals = {w: shaft_illumination(layout, w) for w in wavelengths}
+    limit = layout.model.numerics.max_shaft_illumination
+    bad = {w: v for w, v in vals.items() if limit is not None and v > limit}
+    if bad:
+        raise ValueError(
+            f"the beam still reaches the shaft where its drive is cut (|E_bg|^2 at the ramp / at the probe = "
+            f"{', '.join(f'{v:.1e} at {w:g} nm' for w, v in bad.items())} > {limit:g}): move y_max_um, "
+            "shaft_absorber_start_um and drive_ramp_um up together, or set Numerics.max_shaft_illumination=None to accept it"
+        )
+    return vals
 
 
 def spectrum(model: Model, wavelengths_nm, out_dir: Path, log=_print) -> list[Result]:
@@ -164,6 +179,7 @@ def spectrum(model: Model, wavelengths_nm, out_dir: Path, log=_print) -> list[Re
     if len(set(wls)) != len(wls):
         raise ValueError("duplicate wavelengths")
     layout = build_layout(model, wls)
+    check_shaft_illumination(layout, wls)
     todo = _check_existing(out_dir, model, wls)
     if todo:
         Path(out_dir).mkdir(parents=True, exist_ok=True)
@@ -235,7 +251,10 @@ def _run(layout: Layout, wavelengths, out_dir: Path, log) -> None:
         data = _collect(sim, mons, regions, layout)
         _add_background(data, layout, wl, scale)
         stack = layout.stack(wl)
+        if state["timeout"]:  # nothing is written, so a re-run with other settings starts cleanly
+            raise RuntimeError(f"{wl} nm: DFT fields did not converge within max_time_after_sources (t = {sim.meep_time():.1f})")
         meta = {
+            "ters2d_version": __version__,
             "wavelength_nm": wl,
             "frequency_um_inv": f0,
             "model": model_record(model),
@@ -265,6 +284,4 @@ def _run(layout: Layout, wavelengths, out_dir: Path, log) -> None:
             f"steps={meta['timesteps']} wall={wall:.0f}s init={init_s:.0f}s source points={n_src} "
             f"shaft illumination at ramp={meta['shaft_illumination_at_ramp']:.1e} converged={meta['dft_converged']}"
         )
-        if state["timeout"]:
-            raise RuntimeError(f"{wl} nm: DFT fields did not converge within max_time_after_sources")
         first = False

@@ -2,7 +2,9 @@
 e.g. "tip.half_angle_deg" or "illumination.incidence_deg").
 
 Larger radii widen the shaft: the code checks that it stays clear of the side PML and of
-the side plasmon absorbers and raises an error otherwise.
+the side plasmon absorbers and raises an error otherwise. Default: the production domain on a
+coarse 2 nm grid (the 2 nm gap is one cell), ~11 min per value with mpirun -np 8 on a CPU
+(~2-4 min on a GPU).
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ from ters2d.plotting import plot_sweep
 @dataclass
 class AppConfig:
     model: Model = field(
-        default_factory=lambda: Model(sample=Sample(materials.AU), gap_nm=2.0, numerics=Numerics.small(resolution=500))
+        default_factory=lambda: Model(sample=Sample(materials.AU), gap_nm=2.0, numerics=Numerics.production(resolution=500))
     )
     parameter: str = "tip.apex_radius_nm"
     values: list = field(default_factory=lambda: [10.0, 20.0, 30.0, 40.0])

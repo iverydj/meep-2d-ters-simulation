@@ -50,12 +50,13 @@ class FemSettings:
     threads: int = 16
 
 
-def _absorber_sigma(ngs, tip, num, side: bool):
+def _absorber_sigma(ngs, lay, side: bool):
     """Conductivity of the lossy-air absorbers: the layout and profile of meep_model, but continuous."""
+    tip, num = lay.tip, lay.model.numerics
     a = tip.half_angle
     smax, pw = num.absorber_conductivity, num.absorber_power
-    d_abs = (num.shaft_absorber_start_um - tip.tangent_y) / np.cos(a)
-    d_top = (num.y_max_um - tip.tangent_y) / np.cos(a)
+    d_abs = (lay.shaft_absorber_start - tip.tangent_y) / np.cos(a)
+    d_top = (lay.y_top - tip.tangent_y) / np.cos(a)
     ax = ngs.IfPos(ngs.x, ngs.x, -ngs.x)
     d = (ax - tip.tangent_x) * np.sin(a) + (ngs.y - tip.tangent_y) * np.cos(a)
     u = (d - d_abs) / (d_top - d_abs)
@@ -64,7 +65,7 @@ def _absorber_sigma(ngs, tip, num, side: bool):
         return top
     us = (ax - num.side_absorber_start_um) / (num.x_half_width_um - num.side_absorber_start_um)
     sd = smax * ngs.IfPos(us - 1.0, 1.0, us) ** pw
-    return ngs.IfPos(us, ngs.IfPos(ngs.y - num.side_absorber_top_um, top, sd), top)
+    return ngs.IfPos(us, ngs.IfPos(ngs.y - lay.side_absorber_top, top, sd), top)
 
 
 def _inv_tensor(ngs, ex, ey):
@@ -88,23 +89,23 @@ def solve(model: Model, wavelength_nm: float, settings: FemSettings = FemSetting
     wl = wavelength_nm * 1e-3
     k = 2 * np.pi / wl
     T, P = lay.thickness, settings.pml_um
-    lx, ly = num.x_half_width_um, num.y_max_um
+    lx, ly = num.x_half_width_um, lay.y_top
     ds = T + num.substrate_depth_um
     g = lay.gap
     t_top = (lay.layers[-1][1] - lay.layers[-1][0]) if lay.layers else 0.0
     g_ref = g + t_top
     eps_tip = complex(model.tip.material.epsilon(wavelength_nm))
     tip = tip_shape(model.tip.apex_radius_nm * 1e-3, model.tip.half_angle_deg, g)
-    y_out = ly + P
-    hw_out = float(tip.half_width(y_out)) + 0.05
-    if hw_out >= lx:
+    y_end = ly + P + 0.05  # the wedge is cut just outside the top PML, on its true face lines
+    hw_end = float(tip.half_width(y_end))
+    if hw_end >= lx:
         raise ValueError("tip shaft would enter the side PML")
 
     outer = MoveTo(-lx - P, -ds - P).Rectangle(2 * (lx + P), ds + ly + 2 * P).Face()
     inner = MoveTo(-lx, -ds).Rectangle(2 * lx, ds + ly).Face()
     sub_all = MoveTo(-lx - P, -ds - P).Rectangle(2 * (lx + P), ds - T + P).Face()
     tx, ty = tip.tangent_x, tip.tangent_y
-    wedge = MoveTo(-tx, ty).LineTo(tx, ty).LineTo(hw_out, y_out + 0.05).LineTo(-hw_out, y_out + 0.05).Close().Face()
+    wedge = MoveTo(-tx, ty).LineTo(tx, ty).LineTo(hw_end, y_end).LineTo(-hw_end, y_end).Close().Face()
     tip_all = (wedge + Circle(tip.center, tip.radius).Face()) * outer
     zone = Circle((0, 0.5 * g), 8 * g_ref).Face()
     skin = MoveTo(-lx - P, -T - 0.06).Rectangle(2 * (lx + P), 0.06).Face()
@@ -148,8 +149,8 @@ def solve(model: Model, wavelength_nm: float, settings: FemSettings = FemSetting
     def iso(e):
         return _inv_tensor(ngs, e, e)
 
-    lossy = 1.0 + 1j * _absorber_sigma(ngs, tip, num, side=lay.side_absorbers) / k  # matched: eps = mu = 1 + i sigma / omega
-    lossy_pml = 1.0 + 1j * _absorber_sigma(ngs, tip, num, side=False) / k  # the shaft absorber continues into the PML
+    lossy = 1.0 + 1j * _absorber_sigma(ngs, lay, side=lay.side_absorbers) / k  # matched: eps = mu = 1 + i sigma / omega
+    lossy_pml = 1.0 + 1j * _absorber_sigma(ngs, lay, side=False) / k  # the shaft absorber continues into the PML
     cond = 1.0 + 1j * num.pml_metal_conductivity / k
     if settings.pml_metal not in ("conductor", "gold"):
         raise ValueError("pml_metal must be 'conductor' or 'gold'")
@@ -195,7 +196,7 @@ def solve(model: Model, wavelength_nm: float, settings: FemSettings = FemSetting
         dn, up = ngs.exp(-1j * kyj * ngs.y), ngs.exp(1j * kyj * ngs.y)
         dhx += wj * 1j * kxj * ex_ * (dn + rj * up)
         dhy += wj * ex_ * (-1j * kyj * dn + 1j * kyj * rj * up)
-    r0, r1 = num.drive_ramp_um
+    r0, r1 = lay.drive_ramp
     u_r = ngs.IfPos(ngs.y - r0, ngs.IfPos(ngs.y - r1, 1.0, (ngs.y - r0) / (r1 - r0)), 0.0)
     weight = ngs.cos(0.5 * np.pi * u_r) ** 2  # sources.drive_weight
     grad_bg = ngs.CoefficientFunction((dhx, dhy)).Compile()

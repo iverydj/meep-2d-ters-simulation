@@ -19,14 +19,14 @@ analytic fields, materials, fitting, results, plotting) is pure Python.
 """
 
 from . import materials
+from ._version import __version__
 from .materials import Material, Pole, UniaxialMaterial
 from .model import Illumination, Layer, Model, Numerics, Outputs, Sample, Tip
 from .results import FieldMap, Result, field_map, load_result, read_csv, write_csv
 from .run import simulate, spectrum, sweep
 
-__version__ = "1.0.0"
-
 __all__ = [
+    "__version__",
     "FieldMap",
     "Illumination",
     "Layer",

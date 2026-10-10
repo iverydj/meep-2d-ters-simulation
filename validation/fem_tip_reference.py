@@ -8,9 +8,10 @@ staircased grid. The table has the groups
   spectrum, gap, radius, ws2 (production domain), small, ws2_small (small domain),
   radius_div10 (divergence 10 deg), radius_local (shaft plasmons absorbed from 0.3 um), and
   check_* (order 5, finer mesh, gold continued into the PML, absorbers 0.7x / 1.5x,
-  absorbers + ramp + free region moved by 0.5 um, ramp moved by +-0.5 um).
-gap_nm is the apex-to-substrate (metal-metal) distance; air_gap_nm excludes the layer.
-~1.5 h on 16 cores for all 162 cases. Requires NGSolve (pip install ngsolve).
+  free region + absorbers + ramp moved up 0.5 um (side absorbers out 0.2 um), ramp moved by
+  +-0.5 um), at 633/700/900 nm (Au), 900 nm (SiO2), and partly at 525 nm and for WS2/Au.
+gap_nm is the apex-to-substrate (metal-metal) distance (for WS2/Au: 0.667 nm layer + air gap).
+~2 h on 16 cores for all 170 cases. Requires NGSolve (pip install ngsolve).
 """
 
 from __future__ import annotations
@@ -98,6 +99,18 @@ def _cases():
     c.append(("small", "Au", _model("Au", numerics=small), 525.0, base))
     c.append(("small", "SiO2", _model("SiO2", numerics=small), 633.0, base))
     c += [("ws2_small", s, _model(s, numerics=small), wl, base) for wl in WS2_SMALL_SET for s in ("Au", "WS2/Au")]
+    c += _extra_checks()
+    return c
+
+
+def _extra_checks():
+    """The convergence and boundary checks at the short-wavelength end and with the WS2 layer."""
+    base, c = FemSettings(), []
+    for s, wl in (("Au", 525.0), ("WS2/Au", 633.0)):
+        c.append(("check_order5", s, _model(s), wl, replace(base, order=5)))
+        c.append(("check_mesh_fine", s, _model(s), wl, FINE))
+        c.append(("check_taller", s, _model(s, numerics=Numerics(resolution=1500, **MOVED)), wl, base))
+        c.append(("check_ramp_late", s, _model(s, numerics=Numerics(resolution=1500, drive_ramp_um=(4.0, 5.0))), wl, base))
     return c
 
 
@@ -118,7 +131,6 @@ def main(cfg: AppConfig) -> None:
                 "group": group,
                 "sample": sample,
                 "gap_nm": round(model.gap_nm + layers, 6),
-                "air_gap_nm": model.gap_nm,
                 "radius_nm": model.tip.apex_radius_nm,
                 "wavelength_nm": wl,
                 "order": settings.order,

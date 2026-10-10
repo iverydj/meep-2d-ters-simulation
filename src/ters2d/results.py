@@ -159,7 +159,7 @@ class Result:
 def load_result(npz_path: Path) -> Result:
     npz_path = Path(npz_path)
     meta = json.loads(npz_path.with_suffix(".json").read_text(encoding="utf-8"))
-    if not meta["dft_converged"]:
+    if not meta["dft_converged"]:  # files of older versions could be written unconverged
         raise ValueError(f"{npz_path}: DFT fields did not converge")
     data = dict(np.load(npz_path))
     return Result(meta["wavelength_nm"], enhancement_metrics(data, meta), npz_path, meta)

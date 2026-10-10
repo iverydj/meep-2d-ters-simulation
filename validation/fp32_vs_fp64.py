@@ -3,7 +3,8 @@
 Run the same script once with gpmeep on the GPU and once with upstream Meep:
     MEEP_GPU_BACKEND=cuda python validation/fp32_vs_fp64.py
     mpirun -np 32 python validation/fp32_vs_fp64.py
-Each run writes a CSV row tagged with its backend (and the wall times); compare the two.
+Each run writes a CSV row tagged with its backend (and the wall times), in the columns of
+docs/figures/data/fp32_vs_fp64.csv (where the two rows were merged and given descriptive labels).
 With MPI the default chunk layout is Meep's (Numerics.chunk_layout = "auto").
 """
 
@@ -34,7 +35,7 @@ def main(cfg: AppConfig) -> None:
         "run": tag,
         "meep_version": mp.__version__,
         "processes": mp.count_processors(),
-        **r.row(),
+        **{k: r.row()[k] for k in ("wavelength_nm", "EF_probe", "EF_gap", "I_probe_tip_over_inc")},
         "n_cells": r.meta["layout"]["n_cells"],
         "timesteps": r.meta["timesteps"],
         "time_stepping_s": r.meta["wall_s"],

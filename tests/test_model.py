@@ -34,3 +34,16 @@ def test_sample_label_and_order():
     s = Sample(AU, layers=[Layer(SIO2, 5.0), Layer(WS2_MONOLAYER, 0.65)])
     assert isinstance(s.layers, tuple)
     assert s.label == "WS2/SiO2/Au"
+
+
+def test_shaft_illumination_check():
+    from ters2d.layout import build_layout
+    from ters2d.run import check_shaft_illumination
+
+    lay = build_layout(Model(), [633.0])
+    assert check_shaft_illumination(lay, [633.0])[633.0] < 1e-4
+    steep = build_layout(Model(illumination=Illumination(incidence_deg=45.0)), [633.0])
+    with pytest.raises(ValueError):
+        check_shaft_illumination(steep, [633.0])
+    small = build_layout(Model(numerics=Numerics.small(500)), [633.0])  # check disabled by the preset
+    assert check_shaft_illumination(small, [633.0])[633.0] > 0.1

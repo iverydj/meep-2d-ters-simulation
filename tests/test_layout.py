@@ -83,3 +83,33 @@ def test_probe_default_and_custom():
     assert lay.probe == pytest.approx((0.005, 0.001))
     with pytest.raises(ValueError):
         build_layout(Model(gap_nm=4.0, outputs=Outputs(probe_nm=(0.0, 10.0))), WL)  # inside the tip
+
+
+def test_heights_are_measured_from_the_substrate():
+    """Adding a layer at a fixed tip-substrate distance leaves every boundary in place relative to the tip."""
+    au = build_layout(Model(numerics=Numerics(resolution=1500)), WL)
+    ws2 = build_layout(
+        Model(sample=Sample(AU, (Layer(WS2_MONOLAYER, 0.65),)), gap_nm=2.0 - 2.0 / 3.0, numerics=Numerics(resolution=1500)), WL
+    )
+    t = 2.0 / 3.0 * 1e-3
+    assert ws2.cell_size == pytest.approx(au.cell_size)
+    assert ws2.phys_hi[1] + t == pytest.approx(au.phys_hi[1])
+    assert ws2.shaft_absorber_start + t == pytest.approx(au.shaft_absorber_start)
+    assert np.add(ws2.drive_ramp, t) == pytest.approx(au.drive_ramp)
+    assert ws2.tip.apex_y + t == pytest.approx(au.tip.apex_y)
+
+
+def test_probe_and_near_box_rules():
+    with pytest.raises(ValueError):  # outside the stored grid
+        build_layout(Model(outputs=Outputs(probe_nm=(149.8, 1.0))), WL)
+    with pytest.raises(ValueError):  # exactly on the sample surface
+        build_layout(Model(outputs=Outputs(probe_nm=(30.0, 0.0))), WL)
+    with pytest.raises(ValueError):  # the near box must reach below the top layer
+        build_layout(Model(sample=Sample(AU, (Layer(Material.constant("spacer", index=1.5), 20.0),))), WL)
+    build_layout(
+        Model(
+            sample=Sample(AU, (Layer(Material.constant("spacer", index=1.5), 20.0),)),
+            outputs=Outputs(near_box_nm=(-150, 150, -30, 120)),
+        ),
+        WL,
+    )

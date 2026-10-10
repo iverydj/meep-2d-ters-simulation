@@ -24,7 +24,12 @@ and is the reference of the enhancement factor. (c) Apex and gap.*
 ## Coordinates and units
 
 * y = 0 is the top surface of the sample (the surface the tip faces); the sample fills
-  y < 0. The tip axis is x = 0 and the lowest point of the apex is at y = `gap_nm`.
+  y < 0. The tip axis is x = 0 and the lowest point of the apex is at y = `gap_nm`. The
+  probe and the stored near-field box are given relative to this origin.
+* The heights of the computational domain (top of the free region, shaft and side
+  absorbers, drive ramp) are measured from the substrate surface, i.e. from the bottom of the
+  layers. Adding a layer at a fixed tip-to-substrate distance therefore leaves every boundary
+  where it was relative to the tip, so with/without-layer comparisons change only the layer.
 * The beam comes from the upper left (x < 0, y > 0); its incidence angle is measured from
   the surface normal. p polarization: E = (Ex, Ey) in the plane, Hz out of plane.
 * Tip, gap, layer thicknesses and wavelengths are given in nm; sizes of the computational
@@ -66,16 +71,20 @@ that Meep simulates and the permittivity that the analytic reference field uses.
 | Au | Lorentz–Drude fit, valid 248–6199 nm (identical to `meep.materials.Au`) | A. D. Rakić et al., Appl. Opt. 37, 5271 (1998), doi:10.1364/AO.37.005271 |
 | SiO2 | n = 1.45, non-dispersive | — |
 | WS2 monolayer, in plane | 7-pole Lorentz fit of monolayer ellipsometry data, valid 480–900 nm (relative RMS error of ε 2.3 %, max 5.0 %) | data: G. A. Ermolaev et al., J. Vac. Sci. Technol. B 38, 014002 (2020), doi:10.1116/1.5122683 |
-| WS2, out of plane | 1-pole Lorentz fit of the bulk extraordinary index (width fixed at 0.02 µm⁻¹; Im ε < 0.01 in the window) | data: B. Munkhbat et al., ACS Photonics 9, 2398 (2022), doi:10.1021/acsphotonics.2c00433 |
+| WS2, out of plane | 1-pole Lorentz fit of the bulk extraordinary index (width fixed at 0.02 µm⁻¹; Im ε ≤ 0.015 in the window) | data: B. Munkhbat et al., ACS Photonics 9, 2398 (2022), doi:10.1021/acsphotonics.2c00433 |
 
 No broadband out-of-plane data of a monolayer exist, so the bulk extraordinary index is the
-proxy; the out-of-plane response of TMDs is weak and has no excitons. The gap field is
+proxy; the out-of-plane response of TMDs is weak (dark excitons with out-of-plane dipoles,
+which exist in W-based TMDs, are not modelled). The gap field is
 mostly normal to the layer, which is why the anisotropy matters: an isotropic model with
 the excitonic in-plane permittivity on all axes would overstate how the excitons damp the
 gap mode. Every WS2 pole has a width of at least 0.02 µm⁻¹, because a lossless pole rings
 indefinitely in a pulsed run. Like any Lorentz fit of a band-edge material, the in-plane
-fit overestimates the weak absorption below the A exciton (Im ε = 0.36 vs 0.19 at 700 nm,
-0.13 vs 0.03 at 850 nm); it acts on the small in-plane component of the gap field. Both
+fit overestimates the weak absorption below the A exciton (Im ε = 0.35 vs 0.19 at 700 nm,
+0.13 vs 0.03 at 850 nm); it acts on the small in-plane component of the gap field. The fit
+also contains one narrow pole at 410 nm, outside the window (the side of the C exciton), at
+the minimum width; it is passive and fits the window, but it rings for a long time and is the
+main reason why WS2 runs need more time steps. Both
 tables are CC0 data of the refractiveindex.info database (`materials/nk/`), and
 `materials/fit_ws2_lorentz.py` re-creates the packaged fits.
 
@@ -164,13 +173,18 @@ incident beam are defined in [outputs.md](outputs.md).
   if needed): for an odd count Meep centres the grid half a cell off, which would misplace
   the source points relative to the staircased tip.
 * Production resolution: 1 pixel/nm (2 cells across the default 2 nm gap). The error this
-  causes is measured against the FEM reference of the same model and by resolution series
-  in the small domain ([validation.md](validation.md)).
+  causes is measured against the FEM reference of the same model, by a refinement to 1.5
+  pixels/nm in the production domain and by resolution series in the small domain
+  ([validation.md](validation.md)).
 * One simulation per wavelength: a broadband Gaussian pulse centred on the wavelength, of
   which only the DFT at the centre frequency is used. The structure is built once per
   geometry; for every wavelength the fields are reset and the sources rebuilt. A run stops
-  when the DFT fields change by less than 10⁻⁴ (relative) after the scattered light has
-  crossed the free region once, and fails if that has not happened 80 µm/c after the source.
+  with Meep's `stop_when_dft_decayed`: when the change of the DFT fields between two checks
+  has fallen below 10⁻⁴ of the largest change seen so far, but not before the light has
+  crossed the free region once (the diagonal, ~6.7 µm/c in the production domain); it fails
+  if that has not happened 80 µm/c after the source. Echoes of the shaft plasmons from the
+  top boundary region would arrive later (~13 µm/c); a run with a longer minimum time shows
+  their effect ([validation.md](validation.md)).
 
 ## Boundaries and absorbers
 
@@ -202,8 +216,9 @@ lossier barely damps them (a first version did this and transmitted 83–98 % of
 field). Instead the air itself is made lossy: around the shaft from y = 3.5 µm (measured on
 the faces) to the top of the free region, and above a metal substrate for
 0.8 µm ≤ |x| ≤ 1.8 µm, y ≤ 2.3 µm. The absorber is impedance matched (equal electric and
-magnetic conductivity, ε = μ = 1 + iσ/ω), its σ grows as the cube of the depth to 10 (Meep
-units) over 2 µm (shaft) and 1 µm (sides) in 30 steps, and the gold is unchanged. Like a PML,
+magnetic conductivity, ε = μ = 1 + iσ/ω with ω = 2π/λ in Meep units), its σ grows as the cube
+of the depth to σ = 10 (ε = μ ≈ 1 + 1.0i at 633 nm) over 2 µm (shaft) and 1 µm (sides) in 30
+steps, and the gold is unchanged. Like a PML,
 the absorbers act on the scattered field only (the analytic incident field is not modified).
 
 They must be long and gentle: a matched medium is reflectionless only at normal incidence,
@@ -215,7 +230,7 @@ absorbers, even a frequency-domain PML with the gold continuing into it reflects
 plasmons (1.4–4.6 % change when the PML is moved by 0.5 µm): a PML is not reflectionless for
 a structure that varies along the PML direction, here the widening wedge (A. F. Oskooi et
 al., Opt. Express 16, 11376 (2008), doi:10.1364/OE.16.011376). The final design is
-insensitive to its strength (σ 7–15: < 0.5 %) and position (moved by 0.5 µm: < 1 %), and
+insensitive to its strength (σ 7–15: < 0.5 %) and position (moved by 0.5 µm: ≤ 1.0 %), and
 gives the same result whether the gold continues into the PML or is replaced by the
 conductor (≤ 0.04 %).
 
@@ -226,7 +241,11 @@ at 4.5 µm, inside the shaft absorber. At y = 3.5 µm |E_bg|² on the shaft face
 10⁻³ of its value at the gap centre (500–900 nm, Au and SiO2; every run records this number
 as `shaft_illumination_at_ramp`). A first version ramped the drive down between 1.5 and 2.5
 µm, where the beam is still strong; the enhancement then changed by up to 22 % when the ramp
-moved by 0.5 µm.
+moved by 0.5 µm. In the FEM, moving the ramp of the final design by ±0.5 µm changes EF by at
+most 1.0 % (at 900 nm, where the number is largest); a run is therefore refused when
+`shaft_illumination_at_ramp` exceeds 2 × 10⁻³ (`Numerics.max_shaft_illumination`). The
+default domain satisfies this near 60° incidence for 500–900 nm and half-angles up to ~16.8° (wider shafts reach the side absorbers);
+steeper incidence, longer wavelengths or a narrower angular spectrum need a taller domain.
 
 **Below the substrate.** An opaque metal substrate ends at the bottom of the cell without a
 PML (0.2 µm of gold, many skin depths; a check requires the normal-incidence round trip to

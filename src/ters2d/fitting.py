@@ -122,3 +122,16 @@ def fit_quality(material: Material, wavelength_nm, n, k) -> dict:
         "rel_max": float(rel.max()),
         "min_im_eps_200nm_to_20um": float(np.min(material.epsilon_at_frequency(f_dense).imag)),
     }
+
+
+def pole_warnings(material: Material, fit_window_nm: tuple[float, float], min_gamma_um_inv: float = 0.02) -> list[str]:
+    """Poles that deserve a look: at the lower width bound (narrow, slow to ring down in a pulsed
+    run, possibly over-fitted) or resonant outside the fitted window (fixed only by its tail)."""
+    out = []
+    for i, p in enumerate(material.poles):
+        lam = 1e3 / p.frequency
+        if p.gamma <= min_gamma_um_inv * (1 + 1e-6):
+            out.append(f"pole {i} ({lam:.0f} nm, sigma {p.sigma:.3g}) sits at the minimum width {min_gamma_um_inv} 1/um")
+        if not fit_window_nm[0] <= lam <= fit_window_nm[1]:
+            out.append(f"pole {i} resonates at {lam:.0f} nm, outside the fit window {fit_window_nm} nm")
+    return out

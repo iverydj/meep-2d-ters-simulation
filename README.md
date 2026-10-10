@@ -8,18 +8,19 @@ and parameter sweeps.
 
 It is written for people who want to run a similar TERS simulation for their own case (their
 tip radius and cone angle, gap, substrate, 2D layer from their own n, k data, illumination,
-wavelengths) and get a validated answer: the method (an isolated tip with absorbing
-boundaries, an exact focused beam at every wavelength, a scattered-field formulation) is fixed
-and checked against analytic and frequency-domain references; everything that defines your
-case is a small set of dataclasses. It runs on upstream Meep (CPU) and unchanged on
-[gpmeep](https://github.com/iverydj/gpmeep-releases), a CUDA build of Meep, for GPU speed.
+wavelengths): the method (an isolated tip with absorbing boundaries, an exact focused beam at
+every wavelength, a scattered-field formulation) is fixed and checked against analytic and
+frequency-domain references, everything that defines your case is a small set of
+dataclasses, and the docs say how to check a new case before trusting it. It runs on upstream
+Meep (CPU) and unchanged on [gpmeep](https://github.com/iverydj/gpmeep-releases), a CUDA build
+of Meep, for GPU speed.
 
 ![geometry](docs/figures/geometry.png)
 
-*(a) Computational domain: semi-infinite gold tip, PML on every side, lossy-air absorbers for
-the surface plasmons of the shaft and the substrate, focused beam at 60°. (b) The analytic
-tip-free field, which drives the tip and is the reference of the enhancement. (c) Apex and
-gap.*
+*(a) Computational domain: semi-infinite gold tip, PML wherever the cell is open, lossy-air
+absorbers for the surface plasmons of the shaft and the substrate, focused beam at 60°. (b) The
+analytic tip-free field, which drives the tip and is the reference of the enhancement. (c) Apex
+and gap.*
 
 ## Quick start (CPU Meep, ~2 minutes)
 
@@ -40,9 +41,11 @@ r = simulate(model, 633.0, "runs/quick")
 print(r.ef_probe)   # |E|^2 / |E_tip-free|^2 at the gap centre
 ```
 
-This coarse run (0.44 million cells, 105 s on one core) is for learning the workflow; the
-converged set-up is `Numerics.production(1000)` (1 nm cells, 27 million cells). The tests run
-without Meep: `pip install -e ".[test]" && pytest`.
+This coarse run (0.44 million cells, 105 s on one core) in the small, cheap domain is for
+learning the workflow, not for numbers; the reference set-up is `Numerics.production(1000)`
+(1 nm cells, 27 million cells), and [setting up your simulation](docs/setting_up_your_simulation.md)
+explains how to check convergence. The tests run without Meep:
+`pip install -e ".[test]" && pytest`.
 
 ## On a GPU with gpmeep
 
@@ -75,12 +78,12 @@ Examples, simplest first: `01_quick_low_res_single_wavelength`, `02_spectrum`,
 
 ![spectra](docs/figures/spectra.png)
 
-Over gold the gap field is 152 times the tip-free field at 633 nm, over SiO2 19 times: the
-gold mirror turns the apex field into a gap plasmon. A WS2 monolayer in the 2 nm gap raises
-the enhancement in the remaining air gap by up to a factor of 2, except at its excitons, where
-it damps the gap mode. Spectra, near-field maps, gap and radius dependence and the WS2 results
-are in [docs/results.md](docs/results.md), with every table behind the figures in
-`docs/figures/data/`.
+Over gold the intensity |E|² in the gap is 151 times that of the tip-free field at
+633 nm, over SiO2 19 times: the gold mirror turns the apex field into a gap plasmon. A
+WS2 monolayer in the 2 nm gap raises the enhancement in the remaining air gap by up to a factor
+of 2; at its excitons the gain is smaller, and around the B exciton the layer lowers it.
+Spectra, near-field maps, gap and radius dependence and the WS2 results are in
+[docs/results.md](docs/results.md), with every table behind the figures in `docs/figures/data/`.
 
 ## Repository layout
 

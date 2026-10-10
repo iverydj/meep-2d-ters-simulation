@@ -17,11 +17,17 @@ authoritative description of every field.
 | `Outputs` | `near_box_nm=(-150, 150, -10, 120)`, `probe_nm=None` (gap centre), `full_map=False`, `full_map_stride=8` |
 | `Model` | `tip`, `sample`, `gap_nm=2.0` (air gap), `illumination`, `numerics`, `outputs`; `.with_value("tip.apex_radius_nm", 30)` |
 
+Positions (`gap_nm`, `probe_nm`, `near_box_nm`) are measured from the top surface of the sample;
+the heights of `Numerics` (free region, absorbers, drive ramp) from the substrate surface (the
+bottom of the layers). In the result tables of `docs/figures/data`, `gap_nm` of WS2 rows is the
+apex-to-gold distance.
+
 ## Running (`ters2d.run`, needs Meep)
 
 | function | returns |
 |---|---|
 | `simulate(model, wavelength_nm, out_dir, log=print)` | `Result` |
+| `check_shaft_illumination(layout, wavelengths_nm)` | the shaft-illumination numbers; raises above `Numerics.max_shaft_illumination` (called by `spectrum`) |
 | `spectrum(model, wavelengths_nm, out_dir, log=print)` | `[Result]` (structure built once; resumes from existing files) |
 | `sweep(model, parameter, values, wavelengths_nm, out_root, log=print)` | `[(value, [Result])]`; one directory `out_root/<parameter>=<value>` per value |
 
@@ -48,13 +54,14 @@ authoritative description of every field.
 | `fitting.read_nk_csv(path)` | `(wavelength_nm, n, k)` from a `wavelength_nm,n,k` CSV |
 | `fitting.fit_lorentz(wl, n, k, initial_poles_eV, name=..., fit_window_nm=..., valid_wavelength_nm=..., min_gamma_um_inv=0.02, fixed_gamma_um_inv=None)` | passive Lorentz `Material` |
 | `fitting.fit_quality(material, wl, n, k)` | `rel_rms`, `rel_max`, `min_im_eps_200nm_to_20um` |
+| `fitting.pole_warnings(material, fit_window_nm, min_gamma_um_inv=0.02)` | poles at the width bound or resonant outside the window |
 
 ## Lower-level modules
 
 | module | contents |
 |---|---|
 | `ters2d.layout` | `build_layout(model, wavelengths_nm) -> Layout` (grid-snapped geometry, boundary choices, all pre-run checks), `TipShape`, `tip_shape`, `snapped_thickness`, `chunk_bands` |
-| `ters2d.background` | `GaussianBeam`, `Stack`, `stack_coefficients` (N-layer uniaxial TM transfer), `beam_fields` (points), `beam_fields_grid` (tensor grid): the analytic tip-free field |
+| `ters2d.background` | `GaussianBeam`, `Stack` (layers ordered from the surface down, unlike `Sample.layers`; build it with `Layout.stack(wavelength_nm)`), `stack_coefficients` (N-layer uniaxial TM transfer), `beam_fields` (points), `beam_fields_grid` (tensor grid): the analytic tip-free field |
 | `ters2d.sources` | `volume_sources` (scattered-field current on the Yee points of any shape with a `contains(x, y)` method), `tip_sources`, `drive_weight` |
 | `ters2d.meep_model` | `meep_medium`, `meep_geometry`, `meep_boundary_layers`, `meep_chunk_layout`, `make_simulation` |
 | `ters2d.fem` | `solve(model, wavelength_nm, FemSettings())`: frequency-domain reference of the same model (needs NGSolve) |
