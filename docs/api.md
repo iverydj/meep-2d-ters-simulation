@@ -12,7 +12,7 @@ authoritative description of every field.
 | `Tip` | `apex_radius_nm=20.0`, `half_angle_deg=15.0`, `material=materials.AU` (isotropic `Material`) |
 | `Layer` | `material` (`Material` or `UniaxialMaterial`), `thickness_nm` |
 | `Sample` | `substrate=materials.AU`, `layers=()` (from the substrate upward); `.label` e.g. "WS2/Au" |
-| `Illumination` | `incidence_deg=60.0`, `divergence_deg=14.0` (Gaussian angular spectrum, 1/e² intensity half-angle), `n_waves=721`; p polarization |
+| `Illumination` | `incidence_deg=60.0`, `divergence_deg=14.0` (Gaussian angular spectrum, 1/e² intensity half-angle), `n_waves=721`, `polarization="p"` (`"s"`: E along z) |
 | `Numerics` | grid, domain, boundaries, absorbers, drive ramp, time stepping (see the table in [setting_up_your_simulation.md](setting_up_your_simulation.md)); presets `Numerics.production(resolution=1000, **overrides)`, `Numerics.small(resolution=1000, **overrides)`; `.dx_nm` |
 | `Outputs` | `near_box_nm=(-150, 150, -10, 120)`, `probe_nm=None` (gap centre), `full_map=False`, `full_map_stride=8` |
 | `Model` | `tip`, `sample`, `gap_nm=2.0` (air gap), `illumination`, `numerics`, `outputs`; `.with_value("tip.apex_radius_nm", 30)` |
@@ -37,7 +37,7 @@ apex-to-gold distance.
 |---|---|
 | `Result` | `.wavelength_nm`, `.metrics` (dict, see [outputs.md](outputs.md)), `.ef_probe`, `.ef_gap`, `.meta`, `.file`, `.fields()`, `.e2_at(x_nm, y_nm, kind="")`, `.row()` |
 | `load_result(npz_path)` | `Result` of an existing run file |
-| `field_map(result, region="near", stride=1)` | `FieldMap` (`x_nm`, `y_nm`, `e2_rel`, `outline_nm`, `layers_nm`, `meta`; `save_npz`, `load_npz`) |
+| `field_map(result, region="near", stride=1, normalization="reference")` | `FieldMap` (`x_nm`, `y_nm`, `e2_rel`, `outline_nm`, `layers_nm`, `meta`; `save_npz`, `load_npz`); `normalization="incident"` divides by the incident beam at its focus |
 | `write_csv(rows, path)`, `read_csv(path)` | tables |
 
 ## Materials (`ters2d.materials`, `ters2d.fitting`)
@@ -61,9 +61,9 @@ apex-to-gold distance.
 | module | contents |
 |---|---|
 | `ters2d.layout` | `build_layout(model, wavelengths_nm) -> Layout` (grid-snapped geometry, boundary choices, all pre-run checks), `TipShape`, `tip_shape`, `snapped_thickness`, `chunk_bands` |
-| `ters2d.background` | `GaussianBeam`, `Stack` (layers ordered from the surface down, unlike `Sample.layers`; build it with `Layout.stack(wavelength_nm)`), `stack_coefficients` (N-layer uniaxial TM transfer), `beam_fields` (points), `beam_fields_grid` (tensor grid): the analytic tip-free field |
+| `ters2d.background` | `GaussianBeam(..., polarization="p")`, `Stack` (layers ordered from the surface down, unlike `Sample.layers`; build it with `Layout.stack(wavelength_nm)`), `stack_coefficients(stack, kx, k, polarization)` (N-layer uniaxial transfer matrix, p = TM and s = TE in the thin-film convention), `beam_fields` (points), `beam_fields_grid` (tensor grid): the analytic tip-free field as (Hz, Ex, Ey) for p or (Ez, Hx, Hy) for s (`FIELD_NAMES`, `e_components`) |
 | `ters2d.sources` | `volume_sources` (scattered-field current on the Yee points of any shape with a `contains(x, y)` method), `tip_sources`, `drive_weight` |
 | `ters2d.meep_model` | `meep_medium`, `meep_geometry`, `meep_boundary_layers`, `meep_chunk_layout`, `make_simulation` |
-| `ters2d.fem` | `solve(model, wavelength_nm, FemSettings())`: frequency-domain reference of the same model (needs NGSolve) |
-| `ters2d.analysis` | `fresnel_rp`, `fit_up_down`, `mie_cylinder_hz` (exact 2D Mie series), `rel_l2`, `stokes_wavelength_nm`, `raman_enhancement` |
-| `ters2d.plotting` | `plot_spectra`, `plot_sweep`, `plot_field_map`, `plot_ws2`, `plot_fresnel`, `plot_nanogap`, `plot_resolution_series`, `plot_lorentz_fit`, schematics |
+| `ters2d.fem` | `solve(model, wavelength_nm, FemSettings())`: frequency-domain reference of the same model, p (Hz) or s (Ez) (needs NGSolve) |
+| `ters2d.analysis` | `fresnel_rp`, `fit_up_down`, `mie_cylinder_hz` / `mie_cylinder_ez` (exact 2D Mie series, H or E along the axis), `rel_l2`, `stokes_wavelength_nm`, `raman_enhancement` |
+| `ters2d.plotting` | `plot_spectra`, `plot_sweep`, `plot_field_map`, `plot_ws2`, `plot_fresnel`, `plot_nanogap`, `plot_resolution_series`, `plot_lorentz_fit`, `plot_p_vs_s`, `plot_field_maps_shared`, schematics |

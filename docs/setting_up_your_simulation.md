@@ -125,7 +125,7 @@ Fitting your own n, k data (example 06):
 
 ## 6. Illumination
 
-`Illumination(incidence_deg, divergence_deg, n_waves)`, p polarization.
+`Illumination(incidence_deg, divergence_deg, n_waves, polarization)`.
 
 * `incidence_deg ± 2 divergence_deg` must lie inside (0°, 90°) (the angular spectrum is cut
   there).
@@ -144,8 +144,23 @@ Fitting your own n, k data (example 06):
   ~3 %.)
 * Wavelengths: one run per wavelength; the beam is synthesized at each one, so the angle is
   exact. All materials must be valid at every wavelength.
-* Polarization: only p (TM). In 2D, s polarization is the decoupled TE problem with E along
-  the invariant z axis; it has no field component along the tip axis and no gap mode.
+* Polarization: `"p"` (default; E in the plane of incidence, drives the gap mode) or `"s"`
+  (E along the invariant z axis, parallel to every surface; [model.md](model.md#polarization)).
+  The two are independent runs; a beam polarized at ψ to the plane of incidence gives
+  |E|² = cos²ψ |E_p|² + sin²ψ |E_s|², with `E2_probe_tip` of the two runs (same units). For s:
+  * compare `I_probe_tip_over_inc` (relative to the incident beam) with p, not EF: the
+    tip-free Ez above a metal is suppressed by the surface (|E_ref|² ≈ 0.09 of the incident
+    intensity on gold at 633 nm), so EF divides by a small number ([outputs.md](outputs.md));
+  * the shaft-illumination guard is normalized by the incident beam at its focus (for p: by
+    |E_bg|² at the probe);
+  * a uniaxial layer contributes only its in-plane permittivity;
+  * use field maps with `field_map(result, normalization="incident")`;
+  * cost: the same cells and time steps as p, and a shorter time stepping with gpmeep (231 s
+    instead of 398 s for the production case at 633 nm; table in section 10);
+  * accuracy: above a metal the FDTD error at 1 pixel/nm grows towards the red (over gold
+    −1.6 % at 500 nm, −6.2 % at 633 nm, −12.4 % at 900 nm; p: −5.3 % at 900 nm)
+    ([validation.md](validation.md#s-polarization)); quote the FEM, or refine the grid, for
+    absolute s values above a metal.
 
 ## 7. Outputs
 
@@ -268,6 +283,8 @@ Measured costs (one wavelength; the structure set-up is paid once per geometry):
 | production, 2 nm cells, Au (examples 02–04, 07, 08) | 6.71 M | 10 800–11 700 | 88–100 s + 130–180 s set-up | 616–685 s with 8 MPI processes (+26 s set-up) |
 | production, 1 nm cells, Au | 26.8 M | 19 000–25 000 | 374–496 s + 510 s set-up, 5.7 GB GPU memory | 3614 s with 32 MPI processes (+58 s set-up); 5.0 GB RAM as one process (530 s set-up) |
 | production, 1 nm cells, SiO2 | 28.6 M | 19 000–23 000 | 385–473 s + 630 s set-up | — |
+| s polarization: production, 2 nm cells, Au (example 09) | 6.71 M | 10 100 | 49 s + 130 s set-up | — |
+| s polarization: production, 1 nm cells, Au / SiO2 | 26.8 M / 28.6 M | 19 000–23 400 | 220–267 s / 227–274 s, + 514 / 646 s set-up, 5.9 GB GPU memory | — |
 | production, 0.67 nm cells, Au | 60.4 M | 30 400 | 1229 s + 1173 s set-up, 10.6 GB GPU memory | — |
 
 Each number is a single run (the same production case took 398 s and 470 s in two runs, so

@@ -36,10 +36,17 @@ probed by the domain, beam and absorber variations in [validation.md](validation
 **Staircased geometry.** Meep does not smooth dispersive interfaces, so the curved apex and the
 wedge faces are staircased. At 1 nm cells this makes the FDTD 5.3–15.9 % low for the 2 nm gap
 and R = 20 nm (−7.7 % at 633 nm; less for larger gaps and radii, more for a 1 nm gap); finer
-grids or the FEM give the converged value. Layers are snapped to whole cells.
+grids or the FEM give the converged value. Layers are snapped to whole cells. For s
+polarization above a metal the error has a second cause: in the gap the field scattered by the
+tip nearly cancels the tip-free field (E_scat ≈ −(1.05 + 0.25i) E_bg at the gap centre over gold
+at 633 nm), so a small error of the scattered field becomes a much larger one of what remains.
+The FDTD at 1 nm cells is then 1.6 % (500 nm) to 12.4 % (900 nm) low over gold (−6.2 % at
+633 nm, −4.2 % at 0.67 nm cells); over SiO2 it is within 0.7 %.
 
-**Illumination.** p polarization only (the 2D TE problem has no gap mode); one in-plane
-direction of incidence, from the air side; a Gaussian angular spectrum cut at ±2 divergence
+**Illumination.** p and s polarization, each a separate run (in 2D they do not couple; any
+other polarization is their superposition, see [model.md](model.md#polarization); there is no
+depolarization as by a 3D tip); one in-plane direction of incidence,
+from the air side; a Gaussian angular spectrum cut at ±2 divergence
 angles, so incidence ± 2 divergence must stay below 90° (no high-NA beams). The illuminated
 length of the semi-infinite shaft is a modelling choice set by the beam width and the drive
 ramp; the default domain covers incidence near 60° and 500–900 nm (the shaft-illumination
@@ -69,5 +76,8 @@ for silver and SiO2 at 633 nm) and changes with resolution are taken from it.
 **Validation coverage.** The boundary design was chosen with the FEM on Au; its checks cover Au
 at 525, 633, 700 and 900 nm, SiO2 at 900 nm and WS2/Au at 633 nm (FEM), and Au at 633 and
 900 nm and SiO2 at 900 nm (FDTD). Silver appears only in the FEM layer-transfer check. The
-Fresnel check of the tip-free field ran at 1.5 pixels/nm (production: 1 pixel/nm). Other wavelengths, materials and geometries rely on the
+Fresnel check of the tip-free field ran at 1.5 pixels/nm (production: 1 pixel/nm). For s
+polarization the Fresnel and Mie checks, FDTD vs FEM for Au and SiO2 at 500–900 nm, the grid
+convergence at 633 nm and two FEM checks (order 5, boundaries moved up) at 633 nm were run;
+the other boundary variations were run for p only. Other wavelengths, materials and geometries rely on the
 same design and on the checklist of [setting_up_your_simulation.md](setting_up_your_simulation.md).

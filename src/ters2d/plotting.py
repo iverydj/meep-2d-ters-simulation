@@ -81,10 +81,17 @@ def _fem_rows(fem_csv: Path, group: str, sample: str) -> dict:
 # ----------------------------------------------------------------------------- results
 
 
-def plot_spectra(cases: list[tuple[str, Path, str]], out_png: Path, fem_csv: Path | None = None) -> Path:
+def plot_spectra(
+    cases: list[tuple[str, Path, str]],
+    out_png: Path,
+    fem_csv: Path | None = None,
+    fem_group: str = "spectrum",
+    title_suffix: str = "",
+) -> Path:
     """EF (relative to the tip-free field) and |E|^2 relative to the incident beam vs wavelength.
 
-    cases: [(label, FDTD csv, FEM sample name or ''), ...]; FDTD markers, FEM lines.
+    cases: [(label, FDTD csv, FEM sample name or ''), ...]; FDTD markers, FEM lines (rows of
+    ``fem_group`` in the FEM table).
     """
     plt = _plt()
     fig, axes = plt.subplots(1, 2, figsize=(7.4, 3.0), constrained_layout=True)
@@ -93,13 +100,13 @@ def plot_spectra(cases: list[tuple[str, Path, str]], out_png: Path, fem_csv: Pat
         for ax, key in zip(axes, ("EF_probe", "I_probe_tip_over_inc")):
             ax.plot(d["wavelength_nm"], d[key], color=SERIES[i], ls="none", marker="os^"[i], ms=4, label=f"{label}, FDTD")
             if fem_csv is not None and fem_sample:
-                r = _fem_rows(fem_csv, "spectrum", fem_sample)
+                r = _fem_rows(fem_csv, fem_group, fem_sample)
                 o = np.argsort(r["wavelength_nm"])
                 ax.plot(r["wavelength_nm"][o], r[key][o], color=SERIES[i], lw=1.0, label=f"{label}, FEM")
     axes[0].set_ylabel(r"EF $=|E|^2/|E_\mathrm{ref}|^2$ at gap centre")
     axes[1].set_ylabel(r"$|E|^2/|E_\mathrm{inc}(\mathrm{focus})|^2$ at gap centre")
-    axes[0].set_title("(a) relative to the tip-free field")
-    axes[1].set_title("(b) relative to the incident beam")
+    axes[0].set_title("(a) relative to the tip-free field" + title_suffix)
+    axes[1].set_title("(b) relative to the incident beam" + title_suffix)
     for ax in axes:
         ax.set_yscale("log")
         ax.set_xlabel("wavelength (nm)")
@@ -238,9 +245,15 @@ def plot_field_map(fmap: FieldMap | Path, out_png: Path, vmin: float = 1e-2) -> 
     ax.set_xlabel("x (nm)")
     ax.set_ylabel("y (nm)")
     cb = fig.colorbar(im, ax=ax, shrink=0.85)
-    cb.set_label(r"$|E|^2 / |E_\mathrm{ref}(\mathrm{gap\ centre})|^2$")
     m = fmap.meta
-    ax.set_title(f"{_tex(m['label'])}, {m['wavelength_nm']:.0f} nm, EF at gap centre = {m['EF_probe']:.0f}")
+    pol = m.get("polarization", "p")
+    if m.get("normalization", "reference") == "incident":
+        cb.set_label(r"$|E|^2 / |E_\mathrm{inc}(\mathrm{focus})|^2$")
+        what = f"$|E|^2/|E_\\mathrm{{inc}}|^2$ at gap centre = {m['I_probe_tip_over_inc']:.3g}"
+    else:
+        cb.set_label(r"$|E|^2 / |E_\mathrm{ref}(\mathrm{gap\ centre})|^2$")
+        what = f"EF at gap centre = {m['EF_probe']:.0f}"
+    ax.set_title(f"{_tex(m['label'])}, {pol}-pol., {m['wavelength_nm']:.0f} nm, {what}")
     return save(fig, out_png)
 
 
@@ -629,4 +642,60 @@ def plot_beam_synthesis(ill, wavelength_nm: float, stack, out_png: Path) -> Path
         ax.set_title(title)
         fig.colorbar(im, ax=ax, shrink=0.8).set_label(r"$|E|^2/|E_\mathrm{inc}(\mathrm{focus})|^2$")
     axes[1].set_ylabel("y (µm)")
+    return save(fig, out_png)
+
+
+def plot_p_vs_s(cases: list, out_png: Path, fem_csv: Path) -> Path:
+    """|E|^2 at the gap centre relative to the incident beam, p and s, vs wavelength.
+
+    cases: [(label, color slot, p FDTD csv, s FDTD csv, FEM sample), ...]; color = sample,
+    filled markers / solid FEM line = p, open markers / dashed FEM line = s.
+    """
+    plt = _plt()
+    fig, ax = plt.subplots(figsize=(4.8, 3.4), constrained_layout=True)
+    for label, slot, p_csv, s_csv, fem_sample in cases:
+        color = SERIES[slot]
+        for pol, csv_path, group, ls, mfc in (("p", p_csv, "spectrum", "-", color), ("s", s_csv, "spectrum_s", "--", "white")):
+            r = _fem_rows(fem_csv, group, fem_sample)
+            o = np.argsort(r["wavelength_nm"])
+            ax.plot(r["wavelength_nm"][o], r["I_probe_tip_over_inc"][o], color=color, ls=ls, lw=1.0, label=f"{label}, {pol}, FEM")
+            d = read_csv(csv_path)
+            ax.plot(
+                d["wavelength_nm"],
+                d["I_probe_tip_over_inc"],
+                color=color,
+                ls="none",
+                marker="o",
+                mfc=mfc,
+                ms=4,
+                label=f"{label}, {pol}, FDTD",
+            )
+    ax.set_yscale("log")
+    ax.set_xlabel("wavelength (nm)")
+    ax.set_ylabel(r"$|E|^2/|E_\mathrm{inc}(\mathrm{focus})|^2$ at gap centre")
+    ax.legend(fontsize=6.5, ncol=2)
+    return save(fig, out_png)
+
+
+def plot_field_maps_shared(maps: list, titles: list, out_png: Path, vmin: float = 1e-4) -> Path:
+    """Several field maps (same normalization) side by side on one log color scale."""
+    from matplotlib.colors import LogNorm
+    from matplotlib.patches import Polygon
+
+    plt = _plt()
+    fig, axes = plt.subplots(len(maps), 1, figsize=(5.6, 2.5 * len(maps)), constrained_layout=True, squeeze=False)
+    vmax = max(float(np.nanmax(m.e2_rel)) for m in maps)
+    norm = LogNorm(vmin=vmin, vmax=vmax)
+    for ax, fmap, title in zip(axes[:, 0], maps, titles):
+        im = ax.pcolormesh(fmap.x_nm, fmap.y_nm, fmap.e2_rel.T, shading="nearest", cmap=blue_cmap(), norm=norm)
+        ax.add_patch(Polygon(fmap.outline_nm, closed=True, fc="#d9d7cf", ec=INK2, lw=0.6))
+        ax.axhspan(float(fmap.y_nm.min()), 0.0, color="#d9d7cf")
+        ax.set_xlim(fmap.x_nm.min(), fmap.x_nm.max())
+        ax.set_ylim(fmap.y_nm.min(), fmap.y_nm.max())
+        ax.set_aspect("equal")
+        ax.grid(False)
+        ax.set_ylabel("y (nm)")
+        ax.set_title(title)
+    axes[-1, 0].set_xlabel("x (nm)")
+    fig.colorbar(im, ax=axes[:, 0].tolist(), shrink=0.8).set_label(r"$|E|^2 / |E_\mathrm{inc}(\mathrm{focus})|^2$")
     return save(fig, out_png)

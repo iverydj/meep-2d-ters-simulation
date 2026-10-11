@@ -36,6 +36,38 @@ the production grid of 1 nm.*
 *Resolution series of the tip model in the small domain, relative to the finest grid of each
 series (for WS2/Au the gap is the apex-to-gold distance).*
 
+## s polarization
+
+The checks of the parts and of the whole model, repeated for s (E along z, `Illumination(polarization="s")`):
+
+| check (script) | what is compared | result |
+|---|---|---|
+| Tip-free reference vs Meep (`fresnel_check.py`, `polarization="s"`, `fresnel_check_s.csv`) | as for p, with Ez (Au, SiO2, WS2/Au; 500–850 nm at 60°, 633 nm at 40–70°); WS2/Au tests that s sees only the in-plane permittivity of the uniaxial layer | \|Δr\| ≤ 0.005 (Au, WS2/Au) / 0.0017 (SiO2), \|ΔR\|/R ≤ 0.01 %, phase ≤ 0.29°; the change of r by the WS2 layer (\|r\| −0.30 %, phase +0.88° at 633 nm and 60°) is reproduced within 4 × 10⁻⁵ and 0.002° (with the out-of-plane permittivity it would be −0.06 % and +0.57°) |
+| Scattered-field formulation vs Mie (`mie_check.py`, `polarization="s"`, `mie_check_s.csv`) | the Au cylinder with E along its axis vs the exact series (`analysis.mie_cylinder_ez`). Names differ: E along the cylinder axis is TM with respect to that axis in scattering texts and in the photonic-crystal convention; for the sample it is s, i.e. TE in the thin-film convention | at 1–1.5 px/nm: 1–3 nm from the surface \|E\| rel. L2 error 0.08–0.15 % (H 0.21–0.55 %), mean \|E\|² within 0.14 %; ≥ 4 cells from the surface 0.06–0.08 %; at 2 nm cells 0.30–0.48 % and 0.9 % |
+| Full model FDTD vs FEM (`reproduce/spectra_s.py`, FEM group `spectrum_s`) | default tip over Au and SiO2, production domain, FDTD at 1 px/nm, 500–900 nm | SiO2: −0.1 % (500 nm) to −0.7 % (900 nm), −0.4 % at 633 nm; Au: −1.6 % (500 nm) to −12.4 % (900 nm), −6.2 % at 633 nm |
+| Grid convergence (`s_convergence.py`, FEM groups `small_s`, `spectrum_s`) | Au and SiO2, 633 nm: small domain at 1–3 px/nm and production domain at 1 and 1.5 px/nm, each against the FEM of its domain | small domain, Au: −12.5 / −10.0 / −8.3 / −6.9 % at 1 / 1.5 / 2 / 3 px/nm (p: −7.3 / −4.7 / −2.7 / −2.2 %); SiO2: −1.7 / −1.6 % at 1 / 2 px/nm; production domain, Au: −6.2 % → −4.2 % at 1 → 1.5 px/nm (p: −7.7 % → −5.0 %), −0.2 % after a first-order extrapolation in the cell size (p: +0.5 %) |
+| FEM reference itself (`fem_tip_reference.py`, `check_s_*`) | polynomial order 4 → 5; free region, absorbers and drive ramp moved up 0.5 µm (side absorbers out 0.2 µm), 633 nm | Au −0.003 %, SiO2 +0.05 %; Au −0.07 %, SiO2 +0.04 % |
+
+The parts carry over to s: the tip-free field matches Meep as for p, and next to the cylinder
+the scattered-field formulation is more accurate than for p (0.1 % instead of 4–7 % in the
+1–3 nm shell), as expected for a field that is tangential to the surface and continuous across
+it. Over SiO2 the whole model agrees with the FEM within 0.7 % in the production domain.
+
+Over gold the FDTD error is larger than for p at long wavelengths and grows towards the red,
+the opposite trend. There the field in the gap is the small remainder of a near-cancellation:
+the field scattered by the tip is E_scat ≈ −(1.05 + 0.25i) E_bg at the gap centre at 633 nm
+(FDTD; FEM −(1.06 + 0.26i)), so |E|² is |1 + E_scat/E_bg|² ≈ 0.07 of the tip-free value, and a
+relative error δ of E_scat changes EF by up to 2|E_scat|/|E| δ ≈ 8δ. This is consistent with
+the larger error and with its growth towards the red, where EF, and thus the remainder,
+becomes smaller. In the production domain the FDTD approaches the FEM at the same rate as for
+p when the grid is refined (−6.2 % → −4.2 % from 1 to 1.5 px/nm, −0.2 % after a first-order
+extrapolation). In the small domain it converges more slowly over gold (−12.5 % to −6.9 % from
+1 to 3 px/nm, about as the cell size to the power 0.7; extrapolated −1.7 %, or −4.2 % at first
+order), and over SiO2 the small-domain FDTD stays 1.6 % below the FEM of that domain at 1 and
+2 px/nm, a difference between the two methods in that domain that does not depend on the grid
+(production domain: −0.4 %). For absolute s values above a metal, use the FEM or cells finer
+than 1 nm; [results.md](results.md) quotes FEM values for s as for p.
+
 ## What the numbers say
 
 **The FDTD deviation from the FEM is discretization.** It grows as the gap has fewer cells
@@ -84,3 +116,8 @@ compares it with the committed tables (`figures/data/regression_check.csv`):
 
 The runs take the same number of time steps as the reference runs (20 272 for the production
 case at 633 nm), and the differences are at the level of FP32 rounding.
+
+After s polarization was added (version 1.1.0), four of these cases (small Au, small WS2/Au,
+production Au and SiO2 at 633 nm, p polarization) were run again: the EF values equal those of
+the table above to ≤ 4.4 × 10⁻¹⁶ relative, the same time steps
+(`figures/data/regression_check_v1_1.csv`).

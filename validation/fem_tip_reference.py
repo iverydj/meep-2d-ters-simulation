@@ -11,7 +11,8 @@ staircased grid. The table has the groups
   free region + absorbers + ramp moved up 0.5 um (side absorbers out 0.2 um), ramp moved by
   +-0.5 um), at 633/700/900 nm (Au), 900 nm (SiO2), and partly at 525 nm and for WS2/Au.
 gap_nm is the apex-to-substrate (metal-metal) distance (for WS2/Au: 0.667 nm layer + air gap).
-~2 h on 16 cores for all 170 cases. Requires NGSolve (pip install ngsolve).
+~2 h on 16 cores for all 204 cases. Requires NGSolve (pip install ngsolve). The groups
+spectrum_s, check_s_* and small_s use s-polarized illumination (column polarization).
 """
 
 from __future__ import annotations
@@ -42,7 +43,9 @@ MOVED = dict(
 FINE = FemSettings(h_metal_um=0.01, h_air_um=0.025, h_gap_rel=0.075)
 
 
-def _model(sample: str, metal_metal_nm=2.0, radius=20.0, numerics: Numerics | None = None, divergence=14.0) -> Model:
+def _model(
+    sample: str, metal_metal_nm=2.0, radius=20.0, numerics: Numerics | None = None, divergence=14.0, polarization="p"
+) -> Model:
     """sample: 'Au', 'SiO2' or 'WS2/Au' (0.65 nm monolayer, snapped to 2/3 nm at 1.5 px/nm)."""
     if sample == "WS2/Au":
         s = Sample(materials.AU, (Layer(materials.WS2_MONOLAYER, 0.65),))
@@ -51,9 +54,8 @@ def _model(sample: str, metal_metal_nm=2.0, radius=20.0, numerics: Numerics | No
         s = Sample(materials.AU if sample == "Au" else materials.SIO2)
         gap = metal_metal_nm
     num = numerics if numerics is not None else Numerics(resolution=1500)  # 1.5 px/nm: the layer grid of the FDTD
-    return Model(
-        tip=Tip(apex_radius_nm=radius), sample=s, gap_nm=gap, illumination=Illumination(divergence_deg=divergence), numerics=num
-    )
+    ill = Illumination(divergence_deg=divergence, polarization=polarization)
+    return Model(tip=Tip(apex_radius_nm=radius), sample=s, gap_nm=gap, illumination=ill, numerics=num)
 
 
 def _cases():
@@ -100,6 +102,21 @@ def _cases():
     c.append(("small", "SiO2", _model("SiO2", numerics=small), 633.0, base))
     c += [("ws2_small", s, _model(s, numerics=small), wl, base) for wl in WS2_SMALL_SET for s in ("Au", "WS2/Au")]
     c += _extra_checks()
+    c += s_cases()
+    return c
+
+
+def s_cases():
+    """s-polarized illumination: spectra of the default tip over Au and SiO2, two checks, and
+    the small domain (reference of the s grid-convergence check, validation/s_convergence.py)."""
+    base = FemSettings()
+    c = [("spectrum_s", "Au", _model("Au", polarization="s"), wl, base) for wl in AU_SET]
+    c += [("spectrum_s", "SiO2", _model("SiO2", polarization="s"), wl, base) for wl in SIO2_SET]
+    for s_, wl in (("Au", 633.0), ("SiO2", 633.0)):
+        c.append(("check_s_order5", s_, _model(s_, polarization="s"), wl, replace(base, order=5)))
+        c.append(("check_s_taller", s_, _model(s_, numerics=Numerics(resolution=1500, **MOVED), polarization="s"), wl, base))
+    for s_ in ("Au", "SiO2"):
+        c.append(("small_s", s_, _model(s_, numerics=Numerics.small(resolution=1500), polarization="s"), 633.0, base))
     return c
 
 
@@ -136,6 +153,7 @@ def main(cfg: AppConfig) -> None:
                 "order": settings.order,
                 "pml_metal": settings.pml_metal,
                 "divergence_deg": model.illumination.divergence_deg,
+                "polarization": model.illumination.polarization,
                 **{k: v for k, v in r.items() if k != "wavelength_nm"},
             }
         )

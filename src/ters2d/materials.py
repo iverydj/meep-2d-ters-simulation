@@ -214,7 +214,8 @@ class UniaxialMaterial:
     in_plane: permittivity for fields parallel to the layer (x and z).
     out_of_plane: permittivity for fields along the layer normal (y).
     In the 2D p-polarized problem the field has an in-plane (Ex) and an out-of-plane (Ey)
-    component, so both enter; the gap field is mostly out of plane.
+    component, so both enter; the gap field is mostly out of plane. For s polarization (Ez)
+    only in_plane enters.
     """
 
     name: str

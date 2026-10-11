@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from ters2d import plotting
+from ters2d import FieldMap, plotting, read_csv
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -42,6 +42,38 @@ def main(cfg: AppConfig) -> None:
         plotting.plot_resolution_series(d / "resolution_series.csv", f / "resolution_series.png"),
         plotting.plot_lorentz_fit(d / "ws2_lorentz_fit.csv", f / "ws2_lorentz_fit.png"),
     ]
+    # s polarization
+    done.append(
+        plotting.plot_spectra(
+            [("Au tip / Au", d / "spectrum_Au_s_fdtd.csv", "Au"), ("Au tip / SiO$_2$", d / "spectrum_SiO2_s_fdtd.csv", "SiO2")],
+            f / "spectra_s.png",
+            fem,
+            fem_group="spectrum_s",
+            title_suffix=", s-pol.",
+        )
+    )
+    done.append(
+        plotting.plot_p_vs_s(
+            [
+                ("Au", 0, d / "spectrum_Au_fdtd.csv", d / "spectrum_Au_s_fdtd.csv", "Au"),
+                ("SiO$_2$", 2, d / "spectrum_SiO2_fdtd.csv", d / "spectrum_SiO2_s_fdtd.csv", "SiO2"),
+            ],
+            f / "p_vs_s.png",
+            fem,
+        )
+    )
+    p_map = FieldMap.load_npz(d / "fieldmap_Au_633nm.npz")  # normalized by E_ref(gap centre): renormalize to the incident beam
+    sp = read_csv(d / "spectrum_Au_fdtd.csv")
+    i_ref = float(sp["I_probe_ref_over_inc"][sp["wavelength_nm"] == 633.0][0])
+    p_map.e2_rel = p_map.e2_rel * i_ref
+    s_map = FieldMap.load_npz(d / "fieldmap_Au_633nm_s.npz")
+    done.append(
+        plotting.plot_field_maps_shared(
+            [p_map, s_map],
+            ["(a) p-polarized, Au, 633 nm", "(b) s-polarized, Au, 633 nm"],
+            f / "fieldmap_Au_633nm_p_vs_s.png",
+        )
+    )
     for p in done:
         print(f"wrote {p}")
 

@@ -7,7 +7,7 @@ what comes out is in [outputs.md](outputs.md).
 ## What is simulated
 
 A 2D cross-section (the xy plane; nothing varies along z) of a metal tip held a few nm
-above a sample and illuminated by a focused, p-polarized beam. The quantity of interest is
+above a sample and illuminated by a focused p- or s-polarized beam. The quantity of interest is
 the near field in the gap between the apex and the sample, in particular the field
 enhancement relative to the same sample without the tip. In 2D the tip is an infinitely
 long ridge (a wedge), not a cone; [limitations.md](limitations.md) discusses what that
@@ -31,7 +31,8 @@ and is the reference of the enhancement factor. (c) Apex and gap.*
   layers. Adding a layer at a fixed tip-to-substrate distance therefore leaves every boundary
   where it was relative to the tip, so with/without-layer comparisons change only the layer.
 * The beam comes from the upper left (x < 0, y > 0); its incidence angle is measured from
-  the surface normal. p polarization: E = (Ex, Ey) in the plane, Hz out of plane.
+  the surface normal. p polarization: E = (Ex, Ey) in the plane, Hz out of plane; s
+  polarization: E = Ez out of the plane, H = (Hx, Hy) in the plane.
 * Tip, gap, layer thicknesses and wavelengths are given in nm; sizes of the computational
   domain in µm, which is also Meep's length unit (frequency f = 1/λ in 1/µm, c = 1).
 
@@ -115,6 +116,48 @@ was 4 × 10⁻³ of its gap value at 900 nm, still 9 × 10⁻⁴ at 4 µm), and 
 depended on where the drive of the shaft was cut (+10 % at 900 nm when the cut moved up by
 0.5 µm).
 
+## Polarization
+
+In 2D the fields split into two independent sets, and `Illumination(polarization=...)`
+selects one:
+
+| | p (default) | s |
+|---|---|---|
+| fields | Hz; Ex, Ey | Ez; Hx, Hy |
+| name, thin-film convention (E or H transverse to the plane of incidence xy) | TM | TE |
+| name, photonic-crystal convention | TE | TM |
+| E relative to the tip and sample surfaces | has a normal component; along the tip axis at the apex | parallel to every surface (E along the invariant z) |
+| permittivity of a uniaxial layer it sees | in plane (Ex) and out of plane (Ey) | in plane only (Ez is in the layer plane) |
+| continuous at an interface | Hz and Ex | Ez and Hx |
+| surface plasmons on flat metal and along the shaft | yes | none (a surface plasmon needs E normal to the surface) |
+
+Any polarization, a·p + b·s (linear at ψ to the plane of incidence: a = cos ψ, b = sin ψ;
+circular: b = ±i a), is the superposition of the two runs, and because their E fields are
+orthogonal, |E|² = |a|²|E_p|² + |b|²|E_s|², with |E_p|² and |E_s|² in the same units
+(`E2_probe_tip`; [outputs.md](outputs.md)).
+
+For s, everything of the method carries over with Ez in place of Hz: the beam is the same
+plane-wave superposition, now of unit Ez waves, reflected with the s (TE) transfer
+conditions (admittance ky instead of ky/εx, ky² = εx k² − kx²); the tip is driven by
+J_z = −iω(ε_tip − 1)E_bg,z on its Ez Yee points (whole cells, (i dx, j dx)); and EF is formed
+from |Ez|². Because the Ez points lie on whole cells, the lowest point of the apex circle and
+a few other points lie exactly on the tip boundary; for s the tip is lifted by 10⁻³ of a cell
+in Meep and in the source test alike, so that they are unambiguously air, as at every other
+interface. Nothing is shifted for p.
+
+What the boundary treatment means for s: the PML instability with dispersive metals is a
+property of the material, so the conductor replacement inside the PML is kept; the lossy-air
+absorbers are impedance matched (ε = μ) for both polarizations, but for s they have no surface
+plasmons to absorb and only damp scattered radiation; the drive ramp and the opaque-substrate
+check (normal incidence, the slowest decay into a metal) are unchanged. The shaft-illumination
+guard is normalized differently (section "Illumination of the shaft"), because for s the
+tip-free field in the gap above a metal is itself small: Ez is tangential, and the gold surface
+suppresses it (|t_s|² = 0.089 for a plane wave on gold at 633 nm and 60°; for the default
+beam |Ez_bg|² at the gap centre is 0.091 of the incident intensity at the focus, against 1.96
+for p). See [outputs.md](outputs.md) for what this means for EF. Over a metal the FDTD error at
+1 nm cells is larger for s than for p at long wavelengths, because the gap field of s is the
+small remainder of a near-cancellation ([validation.md](validation.md#s-polarization)).
+
 ## Scattered-field formulation
 
 ![scattered-field idea](figures/scattered_field.png)
@@ -132,8 +175,8 @@ from those of the full structure gives
 
 so the scattered field is driven only by the polarization current of the tip itself, which
 sits in air (ε = 1) in the tip-free problem. Meep propagates E_s in the full structure (tip,
-sample and boundary layers); J is set on every Ex and Ey Yee point inside the staircased
-tip, with exactly the inside test that Meep uses for the geometry (`sources.py`; each
+sample and boundary layers); J is set on every Ex and Ey (p) or Ez (s) Yee point inside the
+staircased tip, with exactly the inside test that Meep uses for the geometry (`sources.py`; each
 amplitude array is padded with one row and column of zeros so that Meep's interpolation of
 `amp_data` puts every value on its own Yee point). The DFT of E_s at the run frequency is
 divided by the Fourier amplitude of the source pulse (times 1/2, because Meep's fields are
@@ -149,7 +192,7 @@ substrate produced a comparable artefact. With the scattered-field formulation t
 sources are inside the tip.
 
 The formulation is checked against the exact Mie solution of a gold cylinder driven the same
-way, with no fitted constant ([validation.md](validation.md)).
+way, for both polarizations, with no fitted constant ([validation.md](validation.md)).
 
 ## Enhancement factor
 
@@ -243,7 +286,9 @@ as `shaft_illumination_at_ramp`). A first version ramped the drive down between 
 µm, where the beam is still strong; the enhancement then changed by up to 22 % when the ramp
 moved by 0.5 µm. In the FEM, moving the ramp of the final design by ±0.5 µm changes EF by at
 most 1.0 % (at 900 nm, where the number is largest); a run is therefore refused when
-`shaft_illumination_at_ramp` exceeds 2 × 10⁻³ (`Numerics.max_shaft_illumination`). The
+`shaft_illumination_at_ramp` exceeds 2 × 10⁻³ (`Numerics.max_shaft_illumination`). For s the
+denominator is |E|² of the incident beam alone at its focus instead of |E_bg|² at the probe,
+because the tip-free Ez at the probe above a metal is suppressed by the surface. The
 default domain satisfies this near 60° incidence for 500–900 nm and half-angles up to ~16.8° (wider shafts reach the side absorbers);
 steeper incidence, longer wavelengths or a narrower angular spectrum need a taller domain.
 
@@ -274,9 +319,10 @@ the time per step on the GPU. MPI runs use Meep's own chunk layout.
 
 ## Frequency-domain reference
 
-`ters2d.fem.solve(model, wavelength)` solves the same problem for Hz in the frequency domain
-with NGSolve: the same tip, sample, beam, drive ramp, absorbers (continuous instead of
-stepped) and conductor-in-PML, but curved high-order elements refined in the gap and the
+`ters2d.fem.solve(model, wavelength)` solves the same problem in the frequency domain with
+NGSolve, for Hz (p) or Ez (s, a scalar Helmholtz equation with the in-plane permittivity and
+μ = 1 except in the absorbers): the same tip, sample, beam, drive ramp, absorbers
+(continuous instead of stepped) and conductor-in-PML, but curved high-order elements refined in the gap and the
 layers, and a complex coordinate-stretching PML. A case takes 10–60 s on 16 cores. Because it
 has no staircasing it gives the converged answer of the model; because it shares every
 modelling choice with the FDTD it does not test those choices ([limitations.md](limitations.md)).

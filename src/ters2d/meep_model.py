@@ -100,7 +100,7 @@ def meep_geometry(layout: Layout) -> list:
     nudge = NUDGE_CELLS * layout.dx
     big = 100.0
     objs = []
-    tip = layout.tip
+    tip = layout.tip_grid
     absorber = absorber_media(layout)
 
     # tip: slab above the tangent line (conductor inside the top PML if dispersive); the two

@@ -1,9 +1,10 @@
 """Tip-free reference vs Meep: specular reflection of the sample at the beam's angles.
 
 For each sample and wavelength a Bloch-periodic Meep cell without tip is illuminated by a
-p-polarized plane wave whose in-plane wavevector k sin(theta) is set for that wavelength,
-so the angle is exact. The Hz field between source and sample is split into down- and
-up-going waves; r = up / down at the surface is compared with the transfer-matrix
+p- or s-polarized plane wave (``AppConfig.polarization``) whose in-plane wavevector
+k sin(theta) is set for that wavelength, so the angle is exact. The out-of-plane field (Hz
+for p, Ez for s) between source and sample is split into down- and up-going waves;
+r = up / down at the surface is compared with the transfer-matrix
 coefficient that the analytic tip-free field uses (same grid-snapped layers, same media).
 This validates the reference field against the discretized Meep materials at the
 simulated resolution and precision. CPU, one process per (sample, wavelength, angle);
@@ -37,6 +38,7 @@ def _cases():
 @dataclass
 class AppConfig:
     cases: list = field(default_factory=_cases)  # (label, sample, resolution)
+    polarization: str = "p"
     incidence_deg: float = 60.0
     wavelengths_nm: list = field(default_factory=lambda: [500, 550, 600, 633, 650, 700, 750, 800, 850])
     angle_scan_deg: list = field(default_factory=lambda: [40.0, 50.0, 70.0])  # extra angles at one wavelength
@@ -47,7 +49,7 @@ class AppConfig:
     substrate_um: float = 0.24  # sizes chosen for even pixel counts (Meep grid alignment)
     pml_um: float = 0.6
     fwidth_rel: float = 0.15
-    out_csv: Path = Path("results") / platform.node() / "fresnel_check" / "fresnel_check.csv"
+    out_csv: Path = Path("results") / platform.node() / "fresnel_check" / "fresnel_check.csv"  # _s.csv for s
 
 
 def reflection(label, sample, resolution, wavelength_nm, incidence_deg, cfg: AppConfig) -> dict:
@@ -93,7 +95,7 @@ def reflection(label, sample, resolution, wavelength_nm, incidence_deg, cfg: App
         mp.Source(
             # keep the pulse spectrum away from the grazing cutoff f0 sin(theta) of the Bloch cell
             mp.GaussianSource(f0, fwidth=min(cfg.fwidth_rel, 1 - np.sin(th)) * f0),
-            component=mp.Ex,
+            component=mp.Ex if cfg.polarization == "p" else mp.Ez,
             center=mp.Vector3(0, ys),
             size=mp.Vector3(cfg.cell_width_um, 0),
             amp_func=lambda p: np.exp(1j * kx * p.x),
@@ -110,17 +112,19 @@ def reflection(label, sample, resolution, wavelength_nm, incidence_deg, cfg: App
         ensure_periodicity=False,  # do not replicate the (taller-than-cell) substrate block along y
         eps_averaging=False,
     )
-    line = sim.add_dft_fields([mp.Hz], [f0], center=mp.Vector3(0, 0.5 * ys), size=mp.Vector3(0, ys))
+    comp = mp.Hz if cfg.polarization == "p" else mp.Ez
+    line = sim.add_dft_fields([comp], [f0], center=mp.Vector3(0, 0.5 * ys), size=mp.Vector3(0, ys))
     sim.run(until_after_sources=mp.stop_when_dft_decayed(1e-6, minimum_run_time=2.0))
     _, y, _, _ = sim.get_array_metadata(dft_cell=line)
     y = np.asarray(y)
-    hz = np.asarray(sim.get_dft_array(line, mp.Hz, 0)).ravel()
+    hz = np.asarray(sim.get_dft_array(line, comp, 0)).ravel()
     sel = (y > 0.05) & (y < ys - 0.05)
     a, b, resid = fit_up_down(y[sel], hz[sel], k * np.cos(th))
-    r_an = complex(stack_coefficients(lay.stack(wavelength_nm), np.array([kx]), k)["r"][0])
+    r_an = complex(stack_coefficients(lay.stack(wavelength_nm), np.array([kx]), k, cfg.polarization)["r"][0])
     r_sim = b / a
     return {
         "sample": label,
+        "polarization": cfg.polarization,
         "resolution": resolution,
         "wavelength_nm": float(wavelength_nm),
         "incidence_deg": incidence_deg,
@@ -142,6 +146,7 @@ def _job(args):
 def main(cfg: AppConfig) -> None:
     jobs = [(lab, s, res, wl, cfg.incidence_deg, cfg) for lab, s, res in cfg.cases for wl in cfg.wavelengths_nm]
     jobs += [(lab, s, res, cfg.angle_scan_wavelength_nm, a, cfg) for lab, s, res in cfg.cases for a in cfg.angle_scan_deg]
+    out = cfg.out_csv if cfg.polarization == "p" else cfg.out_csv.with_name(cfg.out_csv.stem + "_s.csv")
     rows = []
     with ProcessPoolExecutor(cfg.workers, mp_context=multiprocessing.get_context("spawn")) as ex:
         for fut in as_completed([ex.submit(_job, j) for j in jobs]):
@@ -152,8 +157,9 @@ def main(cfg: AppConfig) -> None:
                 f"R_analytic={row['R_fresnel']:.5f} |dr|={row['abs_r_err']:.2e} dphase={row['phase_err_deg']:+.3f} deg",
                 flush=True,
             )
-    rows.sort(key=lambda r: (r["sample"], r["incidence_deg"], r["wavelength_nm"]))
-    print(f"wrote {write_csv(rows, cfg.out_csv)}")
+            rows.sort(key=lambda r: (r["sample"], r["incidence_deg"], r["wavelength_nm"]))
+            write_csv(rows, out)  # rewritten after every case
+    print(f"wrote {out} ({len(rows)} of {len(jobs)} cases)")
 
 
 if __name__ == "__main__":

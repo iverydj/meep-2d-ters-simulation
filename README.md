@@ -3,8 +3,8 @@
 2D FDTD simulation of gap-mode tip-enhanced Raman spectroscopy (TERS) near fields, built on
 [Meep](https://github.com/NanoComp/meep). A semi-infinite metal tip is held a few nm above a
 metal or dielectric sample, optionally covered by a 2D material, and illuminated by a focused
-p-polarized beam; the code returns the field enhancement in the gap, near-field maps, spectra
-and parameter sweeps.
+p- or s-polarized beam; the code returns the field enhancement in the gap, near-field maps,
+spectra and parameter sweeps.
 
 It is written for people who want to run a similar TERS simulation for their own case (their
 tip radius and cone angle, gap, substrate, 2D layer from their own n, k data, illumination,
@@ -71,8 +71,8 @@ A production-size wavelength (27 million cells) takes ~7 min of time stepping on
 
 Examples, simplest first: `01_quick_low_res_single_wavelength`, `02_spectrum`,
 `03_gap_sweep`, `04_radius_sweep`, `05_custom_substrate_and_2d_layer`,
-`06_add_material_from_nk`, `07_field_map`, `08_convergence_check`. Every script has an
-`AppConfig` dataclass at the top instead of command-line options.
+`06_add_material_from_nk`, `07_field_map`, `08_convergence_check`, `09_s_polarization`. Every
+script has an `AppConfig` dataclass at the top instead of command-line options.
 
 ## Results
 
@@ -81,9 +81,11 @@ Examples, simplest first: `01_quick_low_res_single_wavelength`, `02_spectrum`,
 Over gold the intensity |E|² in the gap is 151 times that of the tip-free field at
 633 nm, over SiO2 19 times: the gold mirror turns the apex field into a gap plasmon. A
 WS2 monolayer in the 2 nm gap raises the enhancement in the remaining air gap by up to a factor
-of 2; at its excitons the gain is smaller, and around the B exciton the layer lowers it.
-Spectra, near-field maps, gap and radius dependence and the WS2 results are in
-[docs/results.md](docs/results.md), with every table behind the figures in `docs/figures/data/`.
+of 2; at its excitons the gain is smaller, and around the B exciton the layer lowers it. With
+s polarization (E along the 2D tip) there is no gap mode: over gold at 633 nm the gap intensity
+is 4.7 × 10⁴ times lower than with p. Spectra, near-field maps, gap and radius dependence, the
+WS2 and the s-polarization results are in [docs/results.md](docs/results.md), with every table
+behind the figures in `docs/figures/data/`.
 
 ## Repository layout
 

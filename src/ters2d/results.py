@@ -3,10 +3,12 @@
 Each run writes ``wl<wavelength>nm.npz`` (complex DFT fields on the monitor grids) and a
 ``.json`` with the model, the layout and the run statistics. On every monitor grid
 (prefix ``near_`` or ``full_``) the file stores the scattered field (``sEx``, ``sEy``,
-``sHz``), the analytic tip-free field (``bEx`` ...) and the total field (``Ex`` ...), plus
-the grid coordinates ``x``, ``y`` [um] (origin: the sample surface below the apex).
+``sHz`` for p; ``sEz``, ``sHx``, ``sHy`` for s), the analytic tip-free field (``bEx`` ...)
+and the total field (``Ex`` ...), plus the grid coordinates ``x``, ``y`` [um] (origin: the
+sample surface below the apex).
 
-Definitions (all |E|^2 = |Ex|^2 + |Ey|^2 of the complex amplitude at the run wavelength):
+Definitions (|E|^2 = |Ex|^2 + |Ey|^2 for p, |Ez|^2 for s, of the complex amplitude at the run
+wavelength):
 
 * EF_probe = |E_tip(probe)|^2 / |E_ref(probe)|^2, E_ref the tip-free field at the same point;
   the probe is the gap centre unless ``Outputs.probe_nm`` says otherwise;
@@ -16,6 +18,10 @@ Definitions (all |E|^2 = |Ex|^2 + |Ey|^2 of the complex amplitude at the run wav
 * EF_layer = mean |E|^2 / mean |E_ref|^2 along the axis inside the top layer (if any);
 * I_probe_tip_over_inc, I_probe_ref_over_inc = |E|^2 at the probe relative to the incident
   beam alone (no sample) at its focus.
+
+For s polarization above a metal the tangential tip-free Ez is suppressed by the surface
+(to ~0.09 of the incident intensity on gold at 633 nm), so EF divides by a small number;
+I_probe_tip_over_inc is then the quantity to compare with p (see docs/outputs.md).
 """
 
 from __future__ import annotations
@@ -27,7 +33,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .background import GaussianBeam, Stack, beam_fields
+from .background import GaussianBeam, Stack, beam_fields, e_components
 from .layout import tip_shape
 
 
@@ -49,21 +55,36 @@ def interp2(x, y, field, x0, y0):
     )
 
 
+def e_names(data: dict, prefix: str = "near") -> list[str]:
+    """The electric-field components stored on a monitor grid: Ex, Ey (p) or Ez (s)."""
+    names = [c for c in ("Ex", "Ey", "Ez") if f"{prefix}_{c}" in data]
+    if not names:
+        raise ValueError(f"no electric field on the '{prefix}' monitor")
+    return names
+
+
+def _sum_abs2(values):
+    out = np.abs(values[0]) ** 2
+    for v in values[1:]:
+        out = out + np.abs(v) ** 2
+    return out
+
+
 def intensity(data: dict, prefix: str = "near", kind: str = "") -> np.ndarray:
     """|E|^2 on a monitor grid; kind '' total, 'b' tip-free (reference), 's' scattered."""
-    return np.abs(data[f"{prefix}_{kind}Ex"]) ** 2 + np.abs(data[f"{prefix}_{kind}Ey"]) ** 2
+    return _sum_abs2([data[f"{prefix}_{kind}{c}"] for c in e_names(data, prefix)])
 
 
 def axis_profile(data: dict, prefix: str = "near", kind: str = ""):
-    """Complex (Ex, Ey) on the tip axis x = 0, interpolated between the adjacent pixel columns."""
+    """y and the complex E components (Ex, Ey for p; Ez for s) on the tip axis x = 0,
+    interpolated between the adjacent pixel columns."""
     x = data[f"{prefix}_x"]
     i = int(np.searchsorted(x, 0.0)) - 1
     if not (x[i] < 0 < x[i + 1]):
         raise ValueError("monitor grid does not straddle x = 0")
     t = (0.0 - x[i]) / (x[i + 1] - x[i])
-    ex = (1 - t) * data[f"{prefix}_{kind}Ex"][i] + t * data[f"{prefix}_{kind}Ex"][i + 1]
-    ey = (1 - t) * data[f"{prefix}_{kind}Ey"][i] + t * data[f"{prefix}_{kind}Ey"][i + 1]
-    return data[f"{prefix}_y"], ex, ey
+    comps = [(1 - t) * data[f"{prefix}_{kind}{c}"][i] + t * data[f"{prefix}_{kind}{c}"][i + 1] for c in e_names(data, prefix)]
+    return data[f"{prefix}_y"], comps
 
 
 def gap_metrics(data: dict, meta: dict) -> dict:
@@ -74,11 +95,10 @@ def gap_metrics(data: dict, meta: dict) -> dict:
     g, dx = lay["gap_um"], lay["dx_um"]
     out = {}
     for kind, tag in (("", "tip"), ("b", "ref")):
-        ex = interp2(x, y, data[f"near_{kind}Ex"], px, py)
-        ey = interp2(x, y, data[f"near_{kind}Ey"], px, py)
-        out[f"E2_probe_{tag}"] = float(abs(ex) ** 2 + abs(ey) ** 2)
-        ya, axa, aya = axis_profile(data, kind=kind)
-        col = np.abs(axa) ** 2 + np.abs(aya) ** 2
+        vals = [interp2(x, y, data[f"near_{kind}{c}"], px, py) for c in e_names(data)]
+        out[f"E2_probe_{tag}"] = float(_sum_abs2(vals))
+        ya, comps = axis_profile(data, kind=kind)
+        col = _sum_abs2(comps)
         air = (ya > 0.25 * dx) & (ya < g - 0.25 * dx)
         if not air.any():
             raise ValueError("no monitor points inside the air gap")
@@ -96,10 +116,11 @@ def gap_metrics(data: dict, meta: dict) -> dict:
 def incident_focus_intensity(meta: dict) -> float:
     """|E|^2 of the free-space incident beam (no sample) at its focus."""
     ill = meta["model"]["illumination"]
+    pol = ill.get("polarization", "p")
     fx, fy = meta["layout"]["focus"]
-    beam = GaussianBeam(meta["wavelength_nm"] * 1e-3, ill["incidence_deg"], ill["divergence_deg"], (fx, fy), ill["n_waves"])
-    _, ex, ey = beam_fields(beam, Stack.isotropic(1.0), np.array([fx]), np.array([fy]), part="incident")
-    return float(abs(ex[0]) ** 2 + abs(ey[0]) ** 2)
+    beam = GaussianBeam(meta["wavelength_nm"] * 1e-3, ill["incidence_deg"], ill["divergence_deg"], (fx, fy), ill["n_waves"], pol)
+    f = beam_fields(beam, Stack.isotropic(1.0), np.array([fx]), np.array([fy]), part="incident")
+    return float(_sum_abs2([c[0] for c in e_components(f, pol)]))
 
 
 def enhancement_metrics(data: dict, meta: dict) -> dict:
@@ -151,9 +172,8 @@ class Result:
     def e2_at(self, x_nm: float, y_nm: float, kind: str = "") -> float:
         """|E|^2 at a point of the near monitor [nm]; kind '' total, 'b' reference, 's' scattered."""
         d = self.fields()
-        ex = interp2(d["near_x"], d["near_y"], d[f"near_{kind}Ex"], x_nm * 1e-3, y_nm * 1e-3)
-        ey = interp2(d["near_x"], d["near_y"], d[f"near_{kind}Ey"], x_nm * 1e-3, y_nm * 1e-3)
-        return float(abs(ex) ** 2 + abs(ey) ** 2)
+        vals = [interp2(d["near_x"], d["near_y"], d[f"near_{kind}{c}"], x_nm * 1e-3, y_nm * 1e-3) for c in e_names(d)]
+        return float(_sum_abs2(vals))
 
 
 def load_result(npz_path: Path) -> Result:
@@ -195,11 +215,13 @@ def read_csv(path: Path) -> dict:
 
 @dataclass
 class FieldMap:
-    """|E|^2 / |E_ref(probe)|^2 on a grid (NaN inside the tip and the substrate).
+    """|E|^2 on a grid, normalized (NaN inside the tip and the substrate).
 
-    x_nm, y_nm: grid [nm]; e2_rel[ix, iy]: |E|^2 normalized by the reference intensity at
-    the probe, so that e2_rel at the probe equals EF_probe; outline_nm: tip polygon;
-    layers_nm: (y_bottom, y_top) of each layer; meta: wavelength_nm, label, EF_probe.
+    x_nm, y_nm: grid [nm]; e2_rel[ix, iy]: |E|^2 normalized as meta["normalization"] says:
+    "reference" (by the reference intensity at the probe, so that e2_rel at the probe equals
+    EF_probe) or "incident" (by |E_inc(focus)|^2, so that it equals I_probe_tip_over_inc);
+    outline_nm: tip polygon; layers_nm: (y_bottom, y_top) of each layer; meta: wavelength_nm,
+    label, EF_probe, I_probe_tip_over_inc, polarization, normalization.
     """
 
     x_nm: np.ndarray
@@ -227,14 +249,24 @@ class FieldMap:
         return cls(d["x_nm"], d["y_nm"], d["e2_rel"], d["outline_nm"], d["layers_nm"], json.loads(str(d["meta"])))
 
 
-def field_map(result: Result, region: str = "near", stride: int = 1) -> FieldMap:
+def field_map(result: Result, region: str = "near", stride: int = 1, normalization: str = "reference") -> FieldMap:
     """Field map of a run: region 'near' (around the apex, full resolution) or 'full'
-    (the whole PML-free region, stored only with ``Outputs(full_map=True)``)."""
+    (the whole PML-free region, stored only with ``Outputs(full_map=True)``).
+
+    normalization: "reference" (|E|^2 / |E_ref(probe)|^2, so the map equals EF at the probe)
+    or "incident" (|E|^2 / |E_inc(focus)|^2, the incident beam without sample; the useful
+    choice for s polarization above a metal, where E_ref at the probe is suppressed).
+    """
     d = result.fields()
     if f"{region}_x" not in d:
         raise ValueError(f"run file has no '{region}' monitor (set Outputs(full_map=True) for 'full')")
     meta = result.meta
-    norm = result.metrics["E2_probe_ref"]
+    if normalization == "reference":
+        norm = result.metrics["E2_probe_ref"]
+    elif normalization == "incident":
+        norm = result.metrics["E2_probe_tip"] / result.metrics["I_probe_tip_over_inc"]
+    else:
+        raise ValueError('normalization must be "reference" or "incident"')
     x, y = d[f"{region}_x"][::stride], d[f"{region}_y"][::stride]
     e2 = intensity(d, region)[::stride, ::stride] / norm
     tip = meta["model"]["tip"]
@@ -249,5 +281,12 @@ def field_map(result: Result, region: str = "near", stride: int = 1) -> FieldMap
         e2,
         t.outline(float(y.max())) * 1e3,
         np.asarray(lay["layers"], dtype=float).reshape(-1, 2) * 1e3,
-        {"wavelength_nm": result.wavelength_nm, "label": lay["label"], "EF_probe": result.ef_probe},
+        {
+            "wavelength_nm": result.wavelength_nm,
+            "label": lay["label"],
+            "EF_probe": result.ef_probe,
+            "I_probe_tip_over_inc": result.metrics["I_probe_tip_over_inc"],
+            "polarization": meta.get("polarization", "p"),
+            "normalization": normalization,
+        },
     )

@@ -1,5 +1,7 @@
 """Scattered-field formulation vs the exact 2D Mie solution (Au cylinder in the focused beam).
 
+AppConfig.polarization: "p" (H along the cylinder axis, Hz) or "s" (E along the axis, Ez).
+
 Validates the source construction, its normalization (no fitted constants) and the Au
 model: a cylinder (radius 20 nm, free space) is driven exactly like the tip and its total
 field is compared with the Mie series for the same plane-wave superposition, in three
@@ -16,7 +18,7 @@ from pathlib import Path
 import numpy as np
 
 from ters2d import write_csv
-from ters2d.analysis import mie_cylinder_hz, rel_l2
+from ters2d.analysis import mie_cylinder_ez, mie_cylinder_hz, rel_l2
 from ters2d.background import GaussianBeam, Stack, beam_fields_grid
 from ters2d.materials import AU
 from ters2d.sources import volume_sources
@@ -31,7 +33,8 @@ class AppConfig:
     divergence_deg: float = 14.0
     half_box_um: float = 0.4
     pml_um: float = 0.4
-    out_csv: Path = Path("results") / platform.node() / "mie_check" / "mie_check.csv"
+    polarization: str = "p"  # "s": E along the cylinder axis (Ez), compared with mie_cylinder_ez
+    out_csv: Path = Path("results") / platform.node() / "mie_check" / "mie_check.csv"  # _s.csv for s
 
 
 class _Cylinder:
@@ -51,7 +54,8 @@ def run_one(cfg: AppConfig, res: int, wavelength_nm: float) -> dict:
     f0 = 1 / wl_um
     dx = 1 / res
     R = cfg.radius_um
-    beam = GaussianBeam(wl_um, cfg.incidence_deg, cfg.divergence_deg)
+    pol = cfg.polarization
+    beam = GaussianBeam(wl_um, cfg.incidence_deg, cfg.divergence_deg, polarization=pol)
     stack = Stack.isotropic(1.0)
     eps = complex(AU.epsilon(wavelength_nm))
     src = mp.GaussianSource(f0, fwidth=1.5 * f0, cutoff=4.0)
@@ -66,20 +70,18 @@ def run_one(cfg: AppConfig, res: int, wavelength_nm: float) -> dict:
         boundary_layers=[mp.PML(cfg.pml_um)],
         eps_averaging=False,
     )
-    dft = sim.add_dft_fields([mp.Ex, mp.Ey, mp.Hz], [f0], center=mp.Vector3(), size=mp.Vector3(0.12, 0.12))
+    comps = (mp.Hz, mp.Ex, mp.Ey) if pol == "p" else (mp.Ez, mp.Hx, mp.Hy)  # the order of beam_fields_grid
+    dft = sim.add_dft_fields(list(comps), [f0], center=mp.Vector3(), size=mp.Vector3(0.12, 0.12))
     sim.run(until_after_sources=mp.stop_when_dft_decayed(1e-6, minimum_run_time=2))
     scale = complex(src.fourier_transform(f0)) * (0.5 if sim.fields.is_real else 1.0)
     x, y, _, _ = sim.get_array_metadata(dft_cell=dft)
     x, y = np.asarray(x), np.asarray(y)
     X, Y = np.meshgrid(x, y, indexing="ij")
     bg = beam_fields_grid(beam, stack, x, y)
-    sim_f = [
-        bg[i] + np.asarray(sim.get_dft_array(dft, c, 0)).reshape(len(x), len(y)) / scale
-        for i, c in enumerate((mp.Hz, mp.Ex, mp.Ey))
-    ]
+    sim_f = [bg[i] + np.asarray(sim.get_dft_array(dft, c, 0)).reshape(len(x), len(y)) / scale for i, c in enumerate(comps)]
     th, w = beam.angles_weights()
     r = np.hypot(X, Y)
-    row = {"resolution": res, "wavelength_nm": wavelength_nm}
+    row = {"polarization": pol, "resolution": res, "wavelength_nm": wavelength_nm}
     shells = {
         "shell_1_3nm": (R + 0.001, R + 0.003),
         "surface_shell": (R + 1.5 * dx, R + 4 * dx),
@@ -87,11 +89,17 @@ def run_one(cfg: AppConfig, res: int, wavelength_nm: float) -> dict:
     }
     for name, (r0, r1) in shells.items():
         m = (r > r0) & (r < r1)
-        mie = mie_cylinder_hz(eps, R, wl_um, th, w, (0, 0), (0, 0), X[m], Y[m])
-        e2s = np.abs(sim_f[1][m]) ** 2 + np.abs(sim_f[2][m]) ** 2
-        e2m = np.abs(mie[1]) ** 2 + np.abs(mie[2]) ** 2
-        row[f"{name}_Hz_relL2"] = rel_l2(sim_f[0][m], mie[0])
-        row[f"{name}_E_relL2"] = rel_l2(np.r_[sim_f[1][m], sim_f[2][m]], np.r_[mie[1], mie[2]])
+        if pol == "p":
+            mie = mie_cylinder_hz(eps, R, wl_um, th, w, (0, 0), (0, 0), X[m], Y[m])
+            e2s = np.abs(sim_f[1][m]) ** 2 + np.abs(sim_f[2][m]) ** 2
+            e2m = np.abs(mie[1]) ** 2 + np.abs(mie[2]) ** 2
+            row[f"{name}_Hz_relL2"] = rel_l2(sim_f[0][m], mie[0])
+            row[f"{name}_E_relL2"] = rel_l2(np.r_[sim_f[1][m], sim_f[2][m]], np.r_[mie[1], mie[2]])
+        else:
+            mie = mie_cylinder_ez(eps, R, wl_um, th, w, (0, 0), (0, 0), X[m], Y[m])
+            e2s, e2m = np.abs(sim_f[0][m]) ** 2, np.abs(mie[0]) ** 2
+            row[f"{name}_E_relL2"] = rel_l2(sim_f[0][m], mie[0])
+            row[f"{name}_H_relL2"] = rel_l2(np.r_[sim_f[1][m], sim_f[2][m]], np.r_[mie[1], mie[2]])
         row[f"{name}_mean_E2_ratio"] = float(e2s.mean() / e2m.mean())
     return row
 
@@ -103,7 +111,8 @@ def main(cfg: AppConfig) -> None:
     if mp.am_master():
         for row in rows:
             print(row, flush=True)
-        print(f"wrote {write_csv(rows, cfg.out_csv)}")
+        out = cfg.out_csv if cfg.polarization == "p" else cfg.out_csv.with_name(cfg.out_csv.stem + "_s.csv")
+        print(f"wrote {write_csv(rows, out)}")
 
 
 if __name__ == "__main__":

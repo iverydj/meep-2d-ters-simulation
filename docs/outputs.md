@@ -16,8 +16,8 @@ r.row()               # dict for a CSV row; write_csv([r.row() for r in results]
 
 ## Scalar outputs
 
-All intensities are |E|² = |Ex|² + |Ey|² of the complex field amplitude at the run
-wavelength. "Reference" is the tip-free field at the same point (the analytic E_bg), so a
+All intensities are |E|² of the complex field amplitude at the run wavelength: |Ex|² + |Ey|²
+for p, |Ez|² for s. "Reference" is the tip-free field at the same point (the analytic E_bg), so a
 value of 1 means "no enhancement".
 
 | key | definition |
@@ -36,6 +36,26 @@ to the incident beam also contains what the sample does to the beam (for example
 constructive interference of the reflected beam above gold), which matters when comparing
 substrates.
 
+### s polarization: which number to read
+
+For s the electric field is Ez, tangential to the sample surface. Above a metal the surface
+suppresses it, so the tip-free field in the gap is itself small: for the default beam on gold
+at 633 nm, |E_ref|² at the gap centre is 0.091 of the incident intensity at the focus (for p,
+1.96). EF = |E_tip|²/|E_ref|² then says how the tip changes an already suppressed field; it is
+not comparable with the EF of p. `I_probe_tip_over_inc`, the intensity relative to the
+incident beam alone at its focus, is the number to compare between p and s. Both are
+reported, for s as for p. Over a dielectric the tip-free Ez is less suppressed (SiO2: 0.34 at
+the gap centre; |t_s|² = 0.36 for a plane wave at 60°), but the same rule applies.
+
+The p and s beams have the same plane-wave weights, i.e. the same power, but not the same
+intensity at the focus: the E vectors of the p plane waves point in different directions and
+add as vectors, the Ez of the s plane waves add as scalars, so |E_inc(focus)|² is 2.9 % larger
+for s (0.1858 vs 0.1806 for the default beam). For a beam polarized at ψ to the plane of
+incidence, |E|² = cos²ψ `E2_probe_tip`(p) + sin²ψ `E2_probe_tip`(s) is exact (the same
+arbitrary units for both); weighting `I_probe_tip_over_inc` instead is off by up to that 2.9 %.
+A circular or elliptical polarization a·p + b·s gives |a|²|E_p|² + |b|²|E_s|² in the same way,
+because E_p lies in the plane and E_s along z.
+
 Raman with a Stokes shift: `ters2d.analysis.raman_enhancement(wavelength_nm, ef, laser_nm,
 shift_cm1)` returns EF(laser) × EF(Stokes) interpolated from a computed EF spectrum.
 
@@ -45,7 +65,10 @@ shift_cm1)` returns EF(laser) × EF(Stokes) interpolated from a computed EF spec
 default 300 × 130 nm around the apex at full resolution), NaN inside the tip and the
 substrate, plus the tip outline and the layer positions; at the probe its value is ≈ EF
 (the map interpolates |E|², EF the complex field: they differ by ~0.3 % at the gap centre).
-`plot_field_map` draws it on a log scale. With `Outputs(full_map=True)` every run also stores
+`plot_field_map` draws it on a log scale. `field_map(result, normalization="incident")` divides
+by |E|² of the incident beam at its focus instead (at the probe the map is then
+`I_probe_tip_over_inc`), which puts maps of p and s on one scale, up to the 2.9 % difference of
+their focus intensities. With `Outputs(full_map=True)` every run also stores
 the whole PML-free region (down-sampled by `full_map_stride`), available as
 `field_map(result, "full")`. Inside the plasmon absorbers the total field of such a map is not
 physical: the absorbers damp only the scattered field, while the analytic tip-free field is
@@ -60,9 +83,10 @@ Each wavelength writes two files into the run directory:
 * `wl633.0nm.npz`: complex64 arrays on each monitor grid, with the prefix `near_` (and
   `full_` with `full_map=True`): `x`, `y` (grid coordinates in µm, origin at the sample
   surface below the apex), the scattered field `sEx`, `sEy`, `sHz` (Meep), the tip-free field
-  `bEx`, `bEy`, `bHz` (analytic) and the total field `Ex`, `Ey`, `Hz`. The amplitudes are in
+  `bEx`, `bEy`, `bHz` (analytic) and the total field `Ex`, `Ey`, `Hz`; for s the same with
+  `Ez`, `Hx`, `Hy`. The amplitudes are in
   the arbitrary units of the beam's plane-wave weights (`background.GaussianBeam`; |E|² of the
-  incident beam at its focus is ≈ 0.18 for the default beam), so only ratios are physical.
+  incident beam at its focus is 0.181 (p) or 0.186 (s) for the default beam), so only ratios are physical.
 * `wl633.0nm.json`: the complete model (`asdict(model)`), the layout (cell, free region,
   layers, gap, probe, boundary choices), the permittivities used, the run statistics
   (`timesteps`, `meep_time`, `wall_s` time stepping, `init_s` structure set-up, which is

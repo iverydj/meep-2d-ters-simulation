@@ -3,7 +3,7 @@
 These are the reference results computed with this code for the default gap-mode geometry and
 its variations. Unless stated otherwise: Au tip with apex radius R = 20 nm and half-angle 15°,
 2 nm gap, 60° p-polarized Gaussian beam (divergence 14°), production domain at 1 pixel/nm,
-gpmeep on one GPU. In the figures, markers are FDTD and lines are the frequency-domain (FEM)
+gpmeep on one GPU; s-polarized illumination is in its own section at the end. In the figures, markers are FDTD and lines are the frequency-domain (FEM)
 solution of exactly the same model, which has no staircasing. The numbers in the text are FEM
 values, the accurate numbers of this 2D model; the FDTD values are in the tables. For the 2 nm
 gap and R = 20 nm the FDTD at 1 pixel/nm is 5.3–15.9 % below the FEM (−7.7 % at 633 nm; less
@@ -81,6 +81,57 @@ FEM gives the same ratio in the small domain and in the production domain within
 except at 560 nm, on the steep flank of the B exciton), and the FDTD agrees with the FEM
 within −4.8 % to +1.4 % at the sampled wavelengths.
 
+## s-polarized illumination
+
+![s spectra](figures/spectra_s.png)
+
+*As the first figure, for an s-polarized beam (E along z, the axis of the 2D tip): (a) EF =
+|Ez|²/|Ez,ref|² at the gap centre, (b) relative to the incident beam at its focus. Markers:
+FDTD at six wavelengths; lines: FEM.*
+
+With E along z the field is parallel to every surface of the tip and the sample. It induces no
+surface charge, so there is neither a lightning-rod field nor a gap mode, and the gold tip
+screens the field instead: at 633 nm the intensity at the gap centre is 0.069 times the
+tip-free value above gold and 0.079 times above SiO2. The screening grows as |ε_Au| grows
+towards the red: EF falls from 0.19 at 500 nm to 0.015 at 900 nm above gold, and from 0.17 to
+0.038 above SiO2.
+
+Here EF compares with a tip-free field that is itself small above gold, where the surface
+suppresses the tangential Ez: at the gap centre |E_ref|² is 0.091 of the incident intensity at
+633 nm (0.18 at 500 nm, 0.036 at 900 nm); above SiO2 it is 0.34. Relative to the incident beam
+the intensity at the gap centre is then 0.0063 above gold and 0.027 above SiO2 at 633 nm. What
+EF and this ratio mean for s is explained in
+[outputs.md](outputs.md#s-polarization-which-number-to-read).
+
+![p vs s](figures/p_vs_s.png)
+
+*|E|² at the gap centre relative to the incident beam at its focus, p (filled markers, solid
+lines) and s (open markers, dashed lines).*
+
+The gap mode is a p effect. Relative to the incident beam, p gives 296 above gold at 633 nm
+and s 0.0063, a ratio of 4.7 × 10⁴; the ratio grows from 3.1 × 10² at 500 nm to 1.0 × 10⁶ at
+900 nm. Above SiO2 the ratio is 6.4 × 10² at 633 nm (92 at 500 nm, 2.2 × 10³ at 900 nm). The
+substrate acts in opposite directions: replacing SiO2 by gold raises the gap intensity 17-fold
+for p and lowers it to 0.24 for s at 633 nm (p: 2.1 at 500 nm and 20 at 900 nm; s: 0.61 and
+0.042). These ratios use the incident intensity at the focus of each beam; at equal beam power
+the p/s ratios are 2.9 % smaller ([outputs.md](outputs.md#s-polarization-which-number-to-read)). In this 2D model a beam polarized
+at ψ to the plane of incidence therefore gives the p result scaled by cos²ψ; the s part
+matters only within 0.3° of pure s above gold at 633 nm (2.3° above SiO2).
+
+![field maps p vs s](figures/fieldmap_Au_633nm_p_vs_s.png)
+
+*|E|² above gold at 633 nm, normalized by the incident intensity at the focus of each beam
+(FDTD, 1 nm cells; the beam comes from the upper left): (a) p, (b) s, on one color scale.*
+
+For s the field is lowest next to the metal surfaces, in the gap and along the tip, and grows
+with the distance from the gold, as the tip-free standing wave of the incident and the
+reflected beam does. Both polarizations show the shadow of the wedge on the right.
+
+The FDTD at 1 pixel/nm is 0.1–0.7 % below the FEM above SiO2, but 1.6 % (500 nm) to 12.4 %
+(900 nm) below it above gold (−6.2 % at 633 nm). Above gold the field scattered by the tip
+nearly cancels the tip-free field in the gap, so a small error of the scattered field becomes
+a larger relative error of the remainder ([validation.md](validation.md#s-polarization)).
+
 ## Uncertainty
 
 For the results as a model of a 2D tip, the numerical uncertainty is small compared with the
@@ -88,10 +139,10 @@ modelling choices:
 
 * FEM values (quoted in the text): converged to < 0.1 % in polynomial order and mesh; their
   boundary checks move them by ≤ 1.0 % in the cases checked (Au at 525, 633, 700 and 900 nm,
-  SiO2 at 900 nm, WS2/Au at 633 nm).
+  SiO2 at 900 nm, WS2/Au at 633 nm; for s, Au and SiO2 at 633 nm: ≤ 0.07 %).
 * FDTD values at 1 pixel/nm (markers, tables): biased low by the amounts in
-  [validation.md](validation.md) (−7.7 % at 633 nm for the default case); boundary effects ≤ 1
-  %; FP32 rounding negligible.
+  [validation.md](validation.md) (−7.7 % at 633 nm for the default case; for s over gold −1.6 %
+  at 500 nm to −12.4 % at 900 nm); boundary effects ≤ 1 %; FP32 rounding negligible.
 * Model parameters that are choices, not errors: the beam divergence (10° instead of 14°: −2.7
   % at 633 nm), the illuminated length of the shaft (shaft plasmons absorbed 0.3 µm above the
   apex: −2.4 %), the WS2 thickness and out-of-plane permittivity, the bulk gold permittivity.
@@ -108,8 +159,10 @@ modelling choices:
 | `radius_sweep.png` | `radius_sweep_fdtd.csv`, FEM groups `radius`, `radius_div10`, `radius_local` | `reproduce/radius_sweep.py` |
 | `ws2_on_au.png` | `ws2_on_au_fdtd.csv`, FEM groups `ws2`, `ws2_small` | `reproduce/ws2_on_au.py` |
 | `ws2_lorentz_fit.png` | `ws2_lorentz_fit.csv` | `materials/fit_ws2_lorentz.py` |
+| `spectra_s.png`, `p_vs_s.png` | `spectrum_Au_s_fdtd.csv`, `spectrum_SiO2_s_fdtd.csv`, FEM groups `spectrum_s` (and `spectrum` for p) | `reproduce/spectra_s.py`, `validation/fem_tip_reference.py` |
+| `fieldmap_Au_633nm_p_vs_s.png` | `fieldmap_Au_633nm.npz` (rescaled by `I_probe_ref_over_inc` of the p spectrum), `fieldmap_Au_633nm_s.npz` | `reproduce/field_maps.py`, `reproduce/spectra_s.py` |
 | validation figures | see [validation.md](validation.md) | `validation/*.py` |
-| — | `run_times.csv` (time steps, wall times, cells and backend of every run) | the run metadata |
+| — | `run_times.csv` (time steps, wall times, cells, backend and polarization of every run) | the run metadata |
 
 `reproduce/make_figures.py` renders every figure from these tables (no Meep needed);
 `reproduce/make_schematics.py` the schematics of [model.md](model.md). The FDTD tables were

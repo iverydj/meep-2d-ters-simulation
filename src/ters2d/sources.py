@@ -7,7 +7,8 @@ Subtracting the tip-free equations from Maxwell's equations of the full structur
     curl H_s = -i omega eps E_s + J,     J = -i omega (eps_tip - 1) E_bg   inside the tip,
 
 so the tip is driven by its own induced polarization current; no source sits in air next
-to the sample. Meep propagates E_s in the full structure (tip, sample, boundary layers).
+to the sample. The same holds for both polarizations: J = (Jx, Jy) for p, J = Jz for s.
+Meep propagates E_s in the full structure (tip, sample, boundary layers).
 The tip-free reference is E_s = 0, i.e. E_ref = E_bg exactly, so it needs no simulation.
 
 Why not a line or plane source in air: any localized source near a metal surface launches
@@ -16,9 +17,10 @@ cannot do. A Huygens line source 0.2 um above Au (633 nm) produced an SPP with ~
 reflected-field amplitude at the gap; a total-field/scattered-field plane crossing the Au
 surface produced a comparable artefact. The scattered-field formulation has neither.
 
-The amplitudes are evaluated at the Yee positions of Ex = ((i + 1/2) dx, j dx) and
-Ey = (i dx, (j + 1/2) dx) with the same inside test as the staircased Meep geometry, for
-the single frequency of the run (exact beam angles at that wavelength).
+The amplitudes are evaluated at the Yee positions of the driven components, Ex = ((i + 1/2) dx,
+j dx) and Ey = (i dx, (j + 1/2) dx) for p, Ez = (i dx, j dx) for s, with the same inside test as
+the staircased Meep geometry, for the single frequency of the run (exact beam angles at that
+wavelength).
 """
 
 from __future__ import annotations
@@ -31,12 +33,12 @@ from .layout import Layout
 
 def background_beam(layout: Layout, wavelength_nm: float) -> GaussianBeam:
     ill = layout.model.illumination
-    return GaussianBeam(wavelength_nm * 1e-3, ill.incidence_deg, ill.divergence_deg, layout.focus, ill.n_waves)
+    return GaussianBeam(wavelength_nm * 1e-3, ill.incidence_deg, ill.divergence_deg, layout.focus, ill.n_waves, ill.polarization)
 
 
 def tip_box(layout: Layout):
     """Rectangle (x0, x1, y0, y1) containing the driven part of the tip (apex to the end of the drive ramp)."""
-    tip = layout.tip
+    tip = layout.tip_grid
     dx = layout.dx
     y0, y1 = tip.apex_y - dx, layout.drive_ramp[1]
     hw = float(tip.half_width(np.array([y1]))[0]) + 2 * dx
@@ -58,7 +60,8 @@ def drive_weight(y, ramp):
 
 
 def volume_sources(shape, box, dx: float, beam: GaussianBeam, stack: Stack, eps_scatterer: complex, src_time, ramp=None):
-    """Meep sources J = -i omega (eps - 1) E_bg on the Ex/Ey Yee points inside ``shape``.
+    """Meep sources J = -i omega (eps - 1) E_bg on the Yee points of the electric-field
+    components of ``beam.polarization`` (Ex, Ey for p; Ez for s) inside ``shape``.
 
     ``shape.contains(x, y)`` must reproduce the staircased Meep geometry (cells with an even
     number of pixels); ``box`` = (x0, x1, y0, y1) must contain the scatterer (only its top
@@ -78,7 +81,8 @@ def volume_sources(shape, box, dx: float, beam: GaussianBeam, stack: Stack, eps_
     x0, x1, y0, y1 = box
     sources = []
     n_points = 0
-    for comp, (ox, oy), idx in ((mp.Ex, (0.5, 0.0), 1), (mp.Ey, (0.0, 0.5), 2)):
+    comps = ((mp.Ex, (0.5, 0.0), 1), (mp.Ey, (0.0, 0.5), 2)) if beam.polarization == "p" else ((mp.Ez, (0.0, 0.0), 0),)
+    for comp, (ox, oy), idx in comps:
         xs = _yee_axis(x0, x1, dx, ox)
         ys = _yee_axis(y0, y1, dx, oy)
         X, Y = np.meshgrid(xs, ys, indexing="ij")
@@ -104,4 +108,4 @@ def tip_sources(layout: Layout, wavelength_nm: float, src_time):
     stack = layout.stack(wavelength_nm)
     eps_tip = complex(layout.model.tip.material.epsilon(wavelength_nm))
     ramp = layout.drive_ramp
-    return volume_sources(layout.tip, tip_box(layout), layout.dx, beam, stack, eps_tip, src_time, ramp=ramp)
+    return volume_sources(layout.tip_grid, tip_box(layout), layout.dx, beam, stack, eps_tip, src_time, ramp=ramp)

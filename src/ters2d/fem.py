@@ -1,5 +1,7 @@
 """Frequency-domain FEM reference of the same model (NGSolve; pure CPU, requires ``pip install ngsolve``).
 
+p polarization: Hz with the scattered-field form below; s polarization: Ez (``_solve_s``).
+
 Solves the scattered-field problem for Hz of exactly the model the FDTD simulates (tip,
 sample, Gaussian beam, drive ramp, plasmon absorbers, conductor replacement inside the
 PML; see ``meep_model``), but with curved high-order elements (no staircasing, refined in
@@ -157,6 +159,11 @@ def solve(model: Model, wavelength_nm: float, settings: FemSettings = FemSetting
     tip_pml = eps_tip if (settings.pml_metal == "gold" or not model.tip.material.dispersive) else cond
     sx, sy = model.sample.substrate.epsilon_xy(wavelength_nm)
     sx, sy = complex(sx), complex(sy)
+    if model.illumination.polarization == "s":
+        sub_pml_s = cond if (lay.substrate_metallic and settings.pml_metal == "conductor") else sx
+        return _solve_s(
+            ngs, mesh, model, lay, settings, wavelength_nm, k, eps_tip, tip_pml, sx, sub_pml_s, lossy, lossy_pml, layer_names
+        )
     if lay.substrate_metallic and settings.pml_metal == "conductor":
         sub_pml = _inv_tensor(ngs, cond, cond)
     else:
@@ -235,4 +242,71 @@ def solve(model: Model, wavelength_nm: float, settings: FemSettings = FemSetting
             tip_e2 += abs(bx + 1j / (k * ex_l) * gy) ** 2 + abs(by - 1j / (k * ey_l) * gx) ** 2
             ref_e2 += abs(bx) ** 2 + abs(by) ** 2
         out["EF_layer"] = float(tip_e2 / ref_e2)
+    return out
+
+
+def _solve_s(
+    ngs, mesh, model, lay, settings, wavelength_nm, k, eps_tip, tip_pml, eps_sub, eps_sub_pml, lossy, lossy_pml, layer_names
+):
+    """s polarization: scalar Helmholtz equation for the scattered Ez,
+
+        int mu^-1 grad(E_s) . grad(v) - k^2 eps E_s v  =  int_tip w(y) k^2 (eps_tip - 1) E_bg v,
+
+    with eps the in-plane permittivity of every region (the zz component) and mu = 1 except in
+    the lossy-air absorbers (eps = mu = 1 + i sigma / omega, as for p)."""
+    wl = wavelength_nm * 1e-3
+    eps = {"tip": eps_tip, "tip_pml": tip_pml, "sub": eps_sub, "sub_pml": eps_sub_pml, "air": lossy, "air_pml": lossy_pml}
+    layer_eps = []
+    for layer, name in zip(model.sample.layers, layer_names):
+        ex, _ = layer.material.epsilon_xy(wavelength_nm)
+        layer_eps.append(complex(ex))
+        eps[name] = eps[name + "_pml"] = complex(ex)
+    eps_cf = mesh.MaterialCF(eps, default=1.0)
+    inv_mu = mesh.MaterialCF({"air": 1 / lossy, "air_pml": 1 / lossy_pml}, default=1.0)
+    fes = ngs.H1(mesh, order=settings.order, complex=True)
+    u, v = fes.TnT()
+    a = ngs.BilinearForm(fes, symmetric=True)
+    a += inv_mu * ngs.grad(u) * ngs.grad(v) * ngs.dx - k**2 * eps_cf * u * v * ngs.dx
+
+    ill = model.illumination
+    stack = lay.stack(wavelength_nm)
+    beam = GaussianBeam(wl, ill.incidence_deg, ill.divergence_deg, (0.0, 0.0), settings.n_waves, "s")
+    th, w = beam.angles_weights()
+    kx = k * np.sin(th)
+    c = stack_coefficients(stack, kx, k, "s")
+    ky, r = c["ky"][0].real, c["r"]
+    ebg = ngs.CoefficientFunction(0)
+    for wj, kxj, kyj, rj in zip(w, kx, ky, r):  # the tip-free Ez in air (the tip is in air)
+        ebg += wj * ngs.exp(1j * kxj * ngs.x) * (ngs.exp(-1j * kyj * ngs.y) + rj * ngs.exp(1j * kyj * ngs.y))
+    r0, r1 = lay.drive_ramp
+    u_r = ngs.IfPos(ngs.y - r0, ngs.IfPos(ngs.y - r1, 1.0, (ngs.y - r0) / (r1 - r0)), 0.0)
+    weight = ngs.cos(0.5 * np.pi * u_r) ** 2  # sources.drive_weight
+    f = ngs.LinearForm(fes)
+    f += k**2 * (eps_tip - 1) * weight * ebg.Compile() * v * ngs.dx(definedon=mesh.Materials("tip"))
+    ngs.SetNumThreads(settings.threads)
+    with ngs.TaskManager():
+        a.Assemble()
+        f.Assemble()
+        gfu = ngs.GridFunction(fes)
+        gfu.vec.data = a.mat.Inverse(fes.FreeDofs(), inverse="sparsecholesky") * f.vec
+
+    full = GaussianBeam(wl, ill.incidence_deg, ill.divergence_deg, (0.0, 0.0), ill.n_waves, "s")
+    px, py = lay.probe
+    es = complex(gfu(mesh(px, py)))
+    eb = complex(beam_fields(full, stack, np.array([px]), np.array([py]))[0][0])
+    ei = complex(beam_fields(full, Stack.isotropic(1.0), np.array([0.0]), np.array([0.0]), part="incident")[0][0])
+    e2 = abs(eb + es) ** 2
+    out = {
+        "wavelength_nm": wavelength_nm,
+        "ndof": fes.ndof,
+        "EF_probe": e2 / abs(eb) ** 2,
+        "I_probe_tip_over_inc": e2 / abs(ei) ** 2,
+        "EF_layer": float("nan"),
+    }
+    if lay.layers:  # mean |Ez|^2 on the axis inside the top layer
+        yb, yt = lay.layers[-1]
+        ys = yb + np.linspace(0.1, 0.9, 5) * (yt - yb)
+        lb = beam_fields(full, stack, np.zeros_like(ys), ys)[0]
+        tip_e2 = sum(abs(b + complex(gfu(mesh(0.0, yy)))) ** 2 for yy, b in zip(ys, lb))
+        out["EF_layer"] = float(tip_e2 / np.sum(np.abs(lb) ** 2))
     return out

@@ -6,7 +6,8 @@ Coordinates (2D cross-section in the xy plane; z is the invariant direction):
   y < 0: the layers (top layer directly below y = 0) and the semi-infinite substrate;
 * the tip axis is x = 0 and the lowest point of the apex is at y = gap (the air gap);
 * the beam arrives from the upper left (x < 0, y > 0), incidence angle measured from the
-  surface normal, p-polarized: in-plane E = (Ex, Ey), Hz out of plane.
+  surface normal; p-polarized (in-plane E = (Ex, Ey), Hz out of plane) or s-polarized
+  (E = Ez out of plane, in-plane H = (Hx, Hy)).
 
 Units: geometry of the tip, sample and gap in nm; sizes of the computational domain in
 um (Meep's length unit); wavelengths in nm; angles in degrees.
@@ -93,7 +94,7 @@ class Sample:
 
 @dataclass(frozen=True)
 class Illumination:
-    """Focused p-polarized 2D Gaussian beam.
+    """Focused 2D Gaussian beam, p- or s-polarized.
 
     incidence_deg: angle of the beam axis from the surface normal [deg]; the beam comes
         from the upper left (x < 0).
@@ -102,17 +103,20 @@ class Illumination:
         The spectrum is cut at +-2 divergence_deg, so incidence_deg +- 2 divergence_deg
         must lie in (0, 90) deg.
     n_waves: number of plane waves in the angular superposition.
+    polarization: "p" (E in the plane of incidence, Hz, Ex, Ey; the field has a component along
+        the tip axis and drives the gap mode) or "s" (E along the invariant z axis, Ez, Hx, Hy;
+        E is parallel to every surface of the 2D tip and sample). In 2D the two are decoupled,
+        so any linear polarization is a weighted sum of the two runs. Naming: p = TM and s = TE
+        in the thin-film convention; Meep's tutorials call the Ez set "TM".
 
     The beam is in phase at the focus, the point of the sample surface below the apex
     (x = 0, y = 0), and is synthesized separately at every wavelength (exact angles).
-    Only p polarization (TM: Hz, Ex, Ey) is modelled: in 2D, s polarization is the
-    decoupled TE problem with E along the invariant z axis, which has no field component
-    along the tip axis and no gap mode.
     """
 
     incidence_deg: float = 60.0
     divergence_deg: float = 14.0
     n_waves: int = 721
+    polarization: str = "p"
 
     def __post_init__(self):
         if not self.divergence_deg > 0:
@@ -121,6 +125,8 @@ class Illumination:
             raise ValueError("incidence_deg +- 2 divergence_deg must lie in (0, 90) deg")
         if self.n_waves < 3:
             raise ValueError("n_waves must be >= 3")
+        if self.polarization not in ("p", "s"):
+            raise ValueError('polarization must be "p" or "s"')
 
 
 @dataclass(frozen=True)
@@ -161,8 +167,9 @@ class Numerics:
             to y0 and falls to 0 at y1 (cos^2). Place it inside the shaft absorber, where
             the beam no longer reaches the shaft.
         max_shaft_illumination: a run is refused if |E_bg|^2 on the shaft faces at the start
-            of the ramp exceeds this fraction of |E_bg|^2 at the probe (the cut of the drive
-            would then change EF by more than ~1 %); None disables the check.
+            of the ramp exceeds this fraction of |E_bg|^2 at the probe (p) or of the incident
+            intensity at the focus (s) (the cut of the drive would then change EF by more
+            than ~1 %); None disables the check.
     Heights (y_max_um, shaft_absorber_start_um, side_absorber_top_um, drive_ramp_um) are
     measured from the substrate surface, i.e. from the bottom of the layers.
     Time stepping

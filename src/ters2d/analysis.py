@@ -72,6 +72,53 @@ def mie_cylinder_hz(eps, radius, wavelength, angles, weights, center, focus, x, 
     return hz, ex, ey
 
 
+def mie_cylinder_ez(eps, radius, wavelength, angles, weights, center, focus, x, y, n_max=None):
+    """Exact total field (Ez, Hx, Hy) outside a circular cylinder in an s-polarized plane-wave
+    superposition: E parallel to the cylinder axis ("TM" in the photonic-crystal convention,
+    TE with respect to the xy plane of incidence).
+
+    Incident Ez = sum_j w_j exp(i k u_j . (r - focus)), u_j = (sin th_j, -cos th_j) (the free
+    space s beam of ``background.GaussianBeam``). Ez and dEz/dr are continuous at r = radius.
+    """
+    from scipy.special import h1vp, hankel1, jv, jve, jvp
+
+    k = 2 * np.pi / wavelength
+    m = np.sqrt(complex(eps))
+    xk = k * radius
+    if n_max is None:
+        n_max = int(np.ceil(xk + 4 * xk ** (1 / 3) + 10))
+    n = np.arange(-n_max, n_max + 1)
+    # D = m J_n'(m x) / J_n(m x), with exponentially scaled Bessel functions (large |m| for metals)
+    D = m * 0.5 * (jve(n - 1, m * xk) - jve(n + 1, m * xk)) / jve(n, m * xk)
+    a = (D * jv(n, xk) - jvp(n, xk)) / (h1vp(n, xk) - D * hankel1(n, xk))
+    X = np.asarray(x, dtype=float) - center[0]
+    Y = np.asarray(y, dtype=float) - center[1]
+    r = np.hypot(X, Y)
+    phi = np.arctan2(Y, X)
+    if np.any(r < radius):
+        raise ValueError("Mie evaluation points must lie outside the cylinder")
+    th = np.asarray(angles)
+    ux, uy = np.sin(th), -np.cos(th)
+    phase = np.asarray(weights) * np.exp(1j * k * (ux * (center[0] - focus[0]) + uy * (center[1] - focus[1])))
+    phi_inc = np.arctan2(uy, ux)
+    kr = k * r[..., None]
+    jn, hn = jv(n, kr), hankel1(n, kr)
+    djn, dhn = jvp(n, kr), h1vp(n, kr)
+    ez = np.zeros(r.shape, complex)
+    dr = np.zeros(r.shape, complex)
+    dp = np.zeros(r.shape, complex)
+    for pj, pi in zip(phase, phi_inc):
+        e = (1j**n) * np.exp(1j * n * (phi[..., None] - pi))
+        ez += pj * np.sum(e * (jn + a * hn), axis=-1)
+        dr += pj * np.sum(e * k * (djn + a * dhn), axis=-1)
+        dp += pj * np.sum(e * 1j * n * (jn + a * hn), axis=-1)
+    h_r = -(1j / k) * dp / r  # H = -(i/k) curl(Ez z)
+    h_phi = (1j / k) * dr
+    hx = h_r * np.cos(phi) - h_phi * np.sin(phi)
+    hy = h_r * np.sin(phi) + h_phi * np.cos(phi)
+    return ez, hx, hy
+
+
 def complex_scale(sim, model):
     """Least-squares complex factor c minimizing |sim - c * model|, and the relative residual."""
     sim = np.asarray(sim).ravel()

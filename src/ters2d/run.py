@@ -23,7 +23,7 @@ from pathlib import Path
 import numpy as np
 
 from ._version import __version__
-from .background import beam_fields, beam_fields_grid
+from .background import E_NAMES, FIELD_NAMES, Stack, beam_fields, beam_fields_grid, e_components
 from .layout import Layout, build_layout
 from .model import Model
 from .results import Result, load_result
@@ -54,18 +54,25 @@ def backend_info() -> dict:
 
 
 def shaft_illumination(layout: Layout, wavelength_nm: float) -> float:
-    """max |E_bg|^2 on the shaft faces at the start of the drive ramp, relative to |E_bg|^2 at the probe.
+    """max |E_bg|^2 on the shaft faces at the start of the drive ramp, relative to |E_bg|^2 at the
+    probe (p) or to |E|^2 of the incident beam alone at its focus (s).
 
     Small values (<~1e-3) mean the beam no longer reaches the shaft where its drive is
-    ramped down, so the result does not depend on where the shaft is truncated.
+    ramped down, so the result does not depend on where the shaft is truncated. For s the
+    tip-free field at the probe above a metal is suppressed (Ez is tangential: ~0.09 of the
+    incident intensity on gold at 633 nm), so the incident beam is the reference instead.
     """
     beam = background_beam(layout, wavelength_nm)
     stack = layout.stack(wavelength_nm)
     y0 = layout.drive_ramp[0]
     hw = float(layout.tip.half_width(y0)) + layout.dx
-    _, ex, ey = beam_fields(beam, stack, np.array([-hw, hw, layout.probe[0]]), np.array([y0, y0, layout.probe[1]]))
-    e2 = np.abs(ex) ** 2 + np.abs(ey) ** 2
-    return float(max(e2[0], e2[1]) / e2[2])
+    if beam.polarization == "p":
+        _, ex, ey = beam_fields(beam, stack, np.array([-hw, hw, layout.probe[0]]), np.array([y0, y0, layout.probe[1]]))
+        e2 = np.abs(ex) ** 2 + np.abs(ey) ** 2
+        return float(max(e2[0], e2[1]) / e2[2])
+    (ez,) = e_components(beam_fields(beam, stack, np.array([-hw, hw]), np.array([y0, y0])), "s")
+    (ei,) = e_components(beam_fields(beam, Stack.isotropic(1.0), np.array([0.0]), np.array([0.0]), part="incident"), "s")
+    return float(np.max(np.abs(ez) ** 2) / abs(ei[0]) ** 2)
 
 
 def _monitor_regions(layout: Layout) -> dict:
@@ -78,12 +85,22 @@ def _monitor_regions(layout: Layout) -> dict:
     return regions
 
 
-def _add_monitors(sim, regions: dict, f0: float) -> dict:
+def _meep_components(polarization: str) -> list:
+    """(name, Meep component) of the stored DFT fields."""
     import meep as mp
 
+    comps = {"Ex": mp.Ex, "Ey": mp.Ey, "Hz": mp.Hz, "Ez": mp.Ez, "Hx": mp.Hx, "Hy": mp.Hy}
+    names = ("Ex", "Ey", "Hz") if polarization == "p" else ("Ez", "Hx", "Hy")
+    return [(n, comps[n]) for n in names]
+
+
+def _add_monitors(sim, regions: dict, f0: float, polarization: str) -> dict:
+    import meep as mp
+
+    comps = [c for _, c in _meep_components(polarization)]
     return {
         name: sim.add_dft_fields(
-            [mp.Ex, mp.Ey, mp.Hz], [f0], center=mp.Vector3(0.5 * (x0 + x1), 0.5 * (y0 + y1)), size=mp.Vector3(x1 - x0, y1 - y0)
+            comps, [f0], center=mp.Vector3(0.5 * (x0 + x1), 0.5 * (y0 + y1)), size=mp.Vector3(x1 - x0, y1 - y0)
         )
         for name, (x0, x1, y0, y1) in regions.items()
     }
@@ -91,8 +108,6 @@ def _add_monitors(sim, regions: dict, f0: float) -> dict:
 
 def _collect(sim, mons: dict, regions: dict, layout: Layout) -> dict:
     """Scattered-field DFT arrays cropped to the requested region (Meep pads one pixel)."""
-    import meep as mp
-
     out = {}
     for name, m in mons.items():
         x0, x1, y0, y1 = regions[name]
@@ -104,7 +119,7 @@ def _collect(sim, mons: dict, regions: dict, layout: Layout) -> dict:
         stride = layout.model.outputs.full_map_stride if name == "full" else 1
         ix, iy = ix[::stride], iy[::stride]
         out[f"{name}_x"], out[f"{name}_y"] = x[ix], y[iy]
-        for c, comp in (("Ex", mp.Ex), ("Ey", mp.Ey), ("Hz", mp.Hz)):
+        for c, comp in _meep_components(layout.model.illumination.polarization):
             arr = np.asarray(sim.get_dft_array(m, comp, 0)).reshape(len(x), len(y))[np.ix_(ix, iy)]
             if not np.all(np.isfinite(arr)):
                 raise RuntimeError(f"monitor '{name}' {c}: non-finite DFT fields (the simulation diverged)")
@@ -120,7 +135,7 @@ def _add_background(data: dict, layout: Layout, wavelength_nm: float, scale: com
     stack = layout.stack(wavelength_nm)
     for name in [k[:-2] for k in list(data) if k.endswith("_x")]:
         bg = beam_fields_grid(beam, stack, data[f"{name}_x"], data[f"{name}_y"])
-        for c, b in zip(("Hz", "Ex", "Ey"), bg):
+        for c, b in zip(FIELD_NAMES[beam.polarization], bg):
             data[f"{name}_b{c}"] = b.astype(np.complex64)
             data[f"{name}_{c}"] = (b + data[f"{name}_s{c}"] / scale).astype(np.complex64)
 
@@ -166,7 +181,7 @@ def check_shaft_illumination(layout: Layout, wavelengths) -> dict:
     bad = {w: v for w, v in vals.items() if limit is not None and v > limit}
     if bad:
         raise ValueError(
-            f"the beam still reaches the shaft where its drive is cut (|E_bg|^2 at the ramp / at the probe = "
+            f"the beam still reaches the shaft where its drive is cut (shaft_illumination_at_ramp = "
             f"{', '.join(f'{v:.1e} at {w:g} nm' for w, v in bad.items())} > {limit:g}): move y_max_um, "
             "shaft_absorber_start_um and drive_ramp_um up together, or set Numerics.max_shaft_illumination=None to accept it"
         )
@@ -227,7 +242,7 @@ def _run(layout: Layout, wavelengths, out_dir: Path, log) -> None:
         src = mp.GaussianSource(f0, fwidth=num.pulse_fwidth_rel * f0, cutoff=num.pulse_cutoff)
         srcs, n_src = tip_sources(layout, wl, src)
         sim.change_sources(srcs)
-        mons = _add_monitors(sim, regions, f0)
+        mons = _add_monitors(sim, regions, f0, model.illumination.polarization)
         init_s = 0.0
         if first:
             sim.init_sim()
@@ -255,6 +270,8 @@ def _run(layout: Layout, wavelengths, out_dir: Path, log) -> None:
             raise RuntimeError(f"{wl} nm: DFT fields did not converge within max_time_after_sources (t = {sim.meep_time():.1f})")
         meta = {
             "ters2d_version": __version__,
+            "polarization": model.illumination.polarization,
+            "e_components": list(E_NAMES[model.illumination.polarization]),
             "wavelength_nm": wl,
             "frequency_um_inv": f0,
             "model": model_record(model),

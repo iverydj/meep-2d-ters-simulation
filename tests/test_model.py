@@ -47,3 +47,15 @@ def test_shaft_illumination_check():
         check_shaft_illumination(steep, [633.0])
     small = build_layout(Model(numerics=Numerics.small(500)), [633.0])  # check disabled by the preset
     assert check_shaft_illumination(small, [633.0])[633.0] > 0.1
+
+
+def test_polarization_option():
+    from ters2d.layout import build_layout
+
+    with pytest.raises(ValueError):
+        Illumination(polarization="x")
+    m = Model().with_value("illumination.polarization", "s")
+    assert m.illumination.polarization == "s" and Model().illumination.polarization == "p"
+    lp, ls = build_layout(Model(), [633.0]), build_layout(m, [633.0])
+    assert lp.tip_grid is lp.tip  # p: nothing shifted
+    assert ls.tip_grid.apex_y > ls.tip.apex_y and ls.tip_grid.apex_y - ls.tip.apex_y < 1e-2 * ls.dx

@@ -1,19 +1,28 @@
-"""Analytic tip-free field: a focused p-polarized beam over a layered, uniaxial sample.
+"""Analytic tip-free field: a focused p- or s-polarized beam over a layered, uniaxial sample.
 
 The beam is a superposition of plane waves with incidence angles theta_j around theta_0
 and a Gaussian angular spectrum exp(-((theta_j - theta_0) / theta_d)^2) (a 2D Gaussian
 beam with divergence half-angle theta_d, 1/e^2 of the intensity), cut at +-2 theta_d,
 all in phase at the focus. Each plane wave is reflected and transmitted by the sample
-(air / layers / substrate) with exact TM transfer conditions, so the result is an exact
+(air / layers / substrate) with exact transfer conditions, so the result is an exact
 solution of Maxwell's equations for the sample without the tip. It drives the tip
 through the scattered-field sources (``sources.py``) and is the reference field of the
 enhancement factor.
 
-Conventions: exp(-i omega t), Meep units (um, c = 1, omega = k = 2 pi / wavelength),
-Hz out of plane, Ex = (i / (k eps_x)) dHz/dy, Ey = -(i / (k eps_y)) dHz/dx. The sample
-surface is y = 0, the sample fills y < 0. Each region may be uniaxial with the optic axis
-along y: eps_x (in plane) and eps_y (out of plane); for TM waves
-ky^2 = eps_x (k^2 - kx^2 / eps_y).
+Conventions: exp(-i omega t), Meep units (um, c = 1, omega = k = 2 pi / wavelength). The
+plane of incidence is the xy plane (z is invariant). The sample surface is y = 0, the sample
+fills y < 0. Each region may be uniaxial with the optic axis along y: eps_x (in plane, also
+the zz component) and eps_y (out of plane).
+
+* p polarization (TM in the thin-film convention: H transverse to the plane of incidence):
+  Hz out of plane, Ex = (i / (k eps_x)) dHz/dy, Ey = -(i / (k eps_y)) dHz/dx,
+  ky^2 = eps_x (k^2 - kx^2 / eps_y); Hz and Ex are continuous.
+* s polarization (TE in the thin-film convention, TM in the photonic-crystal convention of
+  Meep's tutorials: E along z, out of the plane): Hx = -(i / k) dEz/dy, Hy = (i / k) dEz/dx,
+  ky^2 = eps_x k^2 - kx^2 (only the in-plane permittivity enters); Ez and Hx are continuous.
+
+The field functions return (scalar out-of-plane field, first in-plane component, second
+in-plane component): (Hz, Ex, Ey) for p, (Ez, Hx, Hy) for s; see ``FIELD_NAMES``.
 """
 
 from __future__ import annotations
@@ -21,6 +30,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+
+POLARIZATIONS = ("p", "s")
+FIELD_NAMES = {"p": ("Hz", "Ex", "Ey"), "s": ("Ez", "Hx", "Hy")}  # order of the returned arrays
+E_NAMES = {"p": ("Ex", "Ey"), "s": ("Ez",)}  # the electric-field components
+
+
+def e_components(fields, polarization: str) -> list:
+    """The electric-field arrays among the (scalar, in-plane, in-plane) fields of a beam."""
+    return [fields[1], fields[2]] if polarization == "p" else [fields[0]]
 
 
 @dataclass(frozen=True)
@@ -67,6 +85,7 @@ class GaussianBeam:
     divergence_deg: theta_d, half-angle of the Gaussian angular spectrum (1/e^2 intensity).
     focus: (x, y) where all incident plane waves are in phase [um].
     n_waves: number of plane waves.
+    polarization: "p" (unit incident Hz per plane wave) or "s" (unit incident Ez).
     """
 
     wavelength: float
@@ -74,6 +93,11 @@ class GaussianBeam:
     divergence_deg: float
     focus: tuple[float, float] = (0.0, 0.0)
     n_waves: int = 721
+    polarization: str = "p"
+
+    def __post_init__(self):
+        if self.polarization not in POLARIZATIONS:
+            raise ValueError(f"polarization must be one of {POLARIZATIONS}")
 
     def angles_weights(self):
         th0 = np.deg2rad(self.incidence_deg)
@@ -91,24 +115,32 @@ def _ky(eps_x, eps_y, kx, k):
     return ky
 
 
-def stack_coefficients(stack: Stack, kx, k) -> dict:
-    """Plane-wave amplitudes for a unit incident Hz = exp(i (kx x - ky0 y)).
+def stack_coefficients(stack: Stack, kx, k, polarization: str = "p") -> dict:
+    """Plane-wave amplitudes for a unit incident scalar field F = exp(i (kx x - ky0 y)),
+    F = Hz for p and F = Ez for s.
 
     In region m (0 = air, 1..N = layers from the top, N + 1 = substrate) with top z_top[m]
     and bottom z_bot[m]:
 
-        Hz = down[m] exp(-i ky[m] (y - z_top[m])) + up[m] exp(i ky[m] (y - z_bot[m]))
+        F = down[m] exp(-i ky[m] (y - z_top[m])) + up[m] exp(i ky[m] (y - z_bot[m]))
 
-    (air: z_top = z_bot = 0, down = 1, up = r; substrate: up = 0). Hz and Ex are
-    continuous at every interface. Reflection coefficients are built recursively from the
-    substrate up, which is stable for thick or lossy layers.
+    (air: z_top = z_bot = 0, down = 1, up = r; substrate: up = 0). F and its normal
+    derivative weighted by the admittance (ky / eps_x for p, ky for s) are continuous at every
+    interface. Reflection coefficients are built recursively from the substrate up, which is
+    stable for thick or lossy layers.
     Returns a dict with r, ky, down, up (lists over regions; arrays over kx), z_top, z_bot.
     """
+    if polarization not in POLARIZATIONS:
+        raise ValueError(f"polarization must be one of {POLARIZATIONS}")
     kx = np.atleast_1d(np.asarray(kx, dtype=float))
     eps = stack.region_eps()
     nreg = len(eps)
-    ky = [_ky(ex, ey, kx, k) for ex, ey in eps]
-    adm = [ky[m] / eps[m][0] for m in range(nreg)]  # TM admittance ky / eps_x
+    if polarization == "p":
+        ky = [_ky(ex, ey, kx, k) for ex, ey in eps]
+        adm = [ky[m] / eps[m][0] for m in range(nreg)]  # TM admittance ky / eps_x
+    else:
+        ky = [_ky(ex, ex, kx, k) for ex, _ in eps]  # s sees only the in-plane permittivity
+        adm = list(ky)  # TE admittance ky (mu = 1)
     thick = [0.0] + [float(t) for _, _, t in stack.layers] + [0.0]
     tops = stack.tops()
     z_top = list(tops)
@@ -128,7 +160,16 @@ def stack_coefficients(stack: Stack, kx, k) -> dict:
         up[m] = r_bot[m] * d_bot
         down[m + 1] = d_bot * (1 + rif[m]) / (1 + rif[m] * gamma[m + 1])
     up[-1] = np.zeros_like(kx, dtype=complex)
-    return {"r": up[0], "ky": ky, "down": down, "up": up, "z_top": z_top, "z_bot": z_bot, "eps": eps}
+    return {
+        "r": up[0],
+        "ky": ky,
+        "down": down,
+        "up": up,
+        "z_top": z_top,
+        "z_bot": z_bot,
+        "eps": eps,
+        "polarization": polarization,
+    }
 
 
 def _region_index(stack: Stack, y) -> np.ndarray:
@@ -142,7 +183,8 @@ def _region_index(stack: Stack, y) -> np.ndarray:
 
 
 def _y_factors(c: dict, m: int, kx, k, y):
-    """(Hz, Ex, Ey) of every plane wave in region m at heights y: arrays (n_waves, n_y)."""
+    """(Hz, Ex, Ey) for p or (Ez, Hx, Hy) for s of every plane wave in region m at heights y:
+    arrays (n_waves, n_y)."""
     kym = c["ky"][m][:, None]
     ex_, ey_ = c["eps"][m]
     Y = np.asarray(y, dtype=float)[None, :]
@@ -152,6 +194,8 @@ def _y_factors(c: dict, m: int, kx, k, y):
     else:
         upw = c["up"][m][:, None] * np.exp(1j * kym * (Y - c["z_bot"][m]))
     h = dn + upw
+    if c["polarization"] == "s":  # here h is Ez
+        return h, -(kym / k) * (dn - upw), -(np.asarray(kx)[:, None] / k) * h
     e_x = (kym / (k * ex_)) * (dn - upw)
     e_y = (np.asarray(kx)[:, None] / (k * ey_)) * h
     return h, e_x, e_y
@@ -167,7 +211,7 @@ def _phased_waves(beam: GaussianBeam):
 
 
 def beam_fields(beam: GaussianBeam, stack: Stack, x, y, part: str = "total"):
-    """(Hz, Ex, Ey) of the tip-free field at the points (x, y) (any matching shapes).
+    """(Hz, Ex, Ey) for p or (Ez, Hx, Hy) for s of the tip-free field at the points (x, y).
 
     part: "total" (incident + reflected in air, transmitted fields in the sample),
     "incident" (the free-space incident beam alone, everywhere) or "reflected" (the
@@ -184,7 +228,7 @@ def beam_fields(beam: GaussianBeam, stack: Stack, x, y, part: str = "total"):
             regions = np.zeros(Y.shape, dtype=int)
     else:
         raise ValueError(f"unknown part {part!r}")
-    c = stack_coefficients(st, kx, k)
+    c = stack_coefficients(st, kx, k, beam.polarization)
     if part == "incident":
         c["up"] = [np.zeros_like(u) for u in c["up"]]
     if part == "reflected":
@@ -202,12 +246,13 @@ def beam_fields(beam: GaussianBeam, stack: Stack, x, y, part: str = "total"):
 
 
 def beam_fields_grid(beam: GaussianBeam, stack: Stack, xs, ys):
-    """(Hz, Ex, Ey) of the total tip-free field on the tensor grid xs x ys (arrays [ix, iy]).
+    """(Hz, Ex, Ey) for p or (Ez, Hx, Hy) for s of the total tip-free field on the tensor grid
+    xs x ys (arrays [ix, iy]).
 
     Separable evaluation (field = sum_j X_j(x) Y_j(y)) done as matrix products.
     """
     k, kx, w = _phased_waves(beam)
-    c = stack_coefficients(stack, kx, k)
+    c = stack_coefficients(stack, kx, k, beam.polarization)
     xs = np.asarray(xs, dtype=float)
     ys = np.asarray(ys, dtype=float)
     Xf = np.exp(1j * np.outer(xs, kx)) * w  # (nx, nj)

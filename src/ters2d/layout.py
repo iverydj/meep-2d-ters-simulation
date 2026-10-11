@@ -115,6 +115,21 @@ class Layout:
     boundary_layers: tuple  # (thickness, axis, side)
 
     @property
+    def tip_grid(self) -> TipShape:
+        """The tip as placed on the Meep grid and tested by the sources.
+
+        For s polarization the Ez points sit on whole cells, so the lowest point of the apex
+        circle (0, gap) and a few other points lie exactly on the tip boundary; the tip is
+        lifted by NUDGE_CELLS of a cell so that such points are unambiguously air, in Meep
+        and in the source alike (the rule of the interfaces: a point on an interface belongs to
+        the medium below). For p no Ex/Ey point lies on the circle and nothing is shifted.
+        """
+        if self.model.illumination.polarization == "p":
+            return self.tip
+        t = self.tip
+        return tip_shape(t.radius, np.degrees(t.half_angle), t.apex_y + NUDGE_CELLS * self.dx)
+
+    @property
     def thickness(self) -> float:
         """Total (snapped) thickness of the layers."""
         return -self.layers[0][0] if self.layers else 0.0
