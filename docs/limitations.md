@@ -14,7 +14,13 @@ tested here (no 3D or axisymmetric calculation is part of this repository), are 
 qualitative trends: the gap mode over a metal and its rapid rise as the gap closes, the
 weaker, less confined field over a dielectric, and the effect of a high-permittivity layer in
 the gap. The non-monotonic radius dependence is specific to the 2D wedge (an isolated
-cylinder above gold gives a monotonic trend) and should not be expected in 3D.
+cylinder above gold gives a monotonic trend) and should not be expected in 3D. For s
+polarization the difference is qualitative: E along z is parallel to the ridge, so the 2D tip
+carries no surface charge and only screens the field, whereas an s-polarized beam polarizes a
+3D cone across its axis. What is expected to carry over is the absence of the gap mode: for an
+axisymmetric tip the plane of incidence is a mirror plane, and an s-polarized beam, odd under
+that mirror, cannot drive the field along the tip axis below the apex. The s values (EF < 1)
+are those of the 2D ridge.
 
 **Local, bulk optics.** All materials are bulk permittivities. There is no nonlocal response,
 electron spill-out or quantum tunnelling, which matter for gaps below ~1 nm and reduce the

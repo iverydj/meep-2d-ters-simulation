@@ -94,7 +94,8 @@ surface charge, so there is neither a lightning-rod field nor a gap mode, and th
 screens the field instead: at 633 nm the intensity at the gap centre is 0.069 times the
 tip-free value above gold and 0.079 times above SiO2. The screening grows as |ε_Au| grows
 towards the red: EF falls from 0.19 at 500 nm to 0.015 at 900 nm above gold, and from 0.17 to
-0.038 above SiO2.
+0.038 above SiO2. This screening is a property of the 2D ridge; what carries over to a 3D tip
+is discussed in [limitations.md](limitations.md).
 
 Here EF compares with a tip-free field that is itself small above gold, where the surface
 suppresses the tangential Ez: at the gap centre |E_ref|² is 0.091 of the incident intensity at
